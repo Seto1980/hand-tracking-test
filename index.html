@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Hand Tracking Mobile</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rehab Counter V2</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -12,35 +13,43 @@
         background-color: #1e1e1e; color: #fff; margin: 0; overflow: hidden; font-family: sans-serif; 
         display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;
     }
-    h1 { position: absolute; top: 10px; z-index: 10; font-size: 1rem; margin: 0; text-shadow: 2px 2px 4px #000; }
-    
-    /* コンテナを画面いっぱいに */
+    /* 情報表示パネル */
+    #info-panel {
+        position: absolute; top: 20px; left: 20px; z-index: 20;
+        background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 10px;
+        text-align: left;
+    }
+    #count-display { font-size: 3rem; font-weight: bold; color: #4caf50; margin: 0; }
+    #status-display { font-size: 1.2rem; color: #ccc; }
+
     .container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: #000; }
     
-    /* ビデオとキャンバスを重ねる */
     video, canvas { 
         position: absolute; 
-        max-width: 100%; max-height: 100%; 
-        object-fit: contain; /* アスペクト比を維持 */
-        transform: scaleX(-1); /* 鏡面反転 */
+        width: 100%; height: 100%; 
+        object-fit: cover; /* 全画面に広げる */
+        /* リアカメラなので反転させない */
     }
     
-    /* 開始ボタンのデザイン */
     button { 
-        position: absolute; z-index: 20; bottom: 50px;
-        padding: 15px 30px; font-size: 18px; font-weight: bold;
-        cursor: pointer; background: #007bff; color: white; 
+        position: absolute; z-index: 30; bottom: 50px;
+        padding: 15px 40px; font-size: 18px; font-weight: bold;
+        cursor: pointer; background: #d93025; color: white; 
         border: none; border-radius: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
 </style>
 </head>
 <body>
 
-<h1>ハンドトラッキング TEST</h1>
+<div id="info-panel">
+    <div id="status-display">待機中...</div>
+    <div id="count-display">0</div>
+</div>
+
 <div class="container">
     <video id="inputVideo" playsinline></video>
     <canvas id="outputCanvas"></canvas>
-    <button id="startBtn">カメラを開始</button>
+    <button id="startBtn">リハビリ開始 (リアカメラ)</button>
 </div>
 
 <script>
@@ -48,13 +57,28 @@
     const canvasElement = document.getElementById('outputCanvas');
     const canvasCtx = canvasElement.getContext('2d');
     const startBtn = document.getElementById('startBtn');
+    const countDisplay = document.getElementById('count-display');
+    const statusDisplay = document.getElementById('status-display');
+
+    let counter = 0;
+    let isHandClosed = false; // 手の状態管理
+
+    // 音声合成の準備
+    const synth = window.speechSynthesis;
+    function speak(text) {
+        if (synth.speaking) return; // 喋ってる途中ならキャンセル
+        const ut = new SpeechSynthesisUtterance(text);
+        ut.lang = 'ja-JP';
+        ut.rate = 1.0; // 早さ
+        synth.speak(ut);
+    }
 
     const hands = new Hands({locateFile: (file) => {
         return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
     }});
     
     hands.setOptions({
-        maxNumHands: 2,
+        maxNumHands: 1, // リハビリ用なので片手に限定
         modelComplexity: 1,
         minDetectionConfidence: 0.5,
         minTrackingConfidence: 0.5
@@ -64,10 +88,44 @@
         canvasCtx.save();
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-        if (results.multiHandLandmarks) {
-            for (const landmarks of results.multiHandLandmarks) {
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
-                drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
+        
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks[0];
+            
+            // 骨格描画
+            drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+            drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
+
+            // 簡易的なグーパー判定（指先と手首の距離で判定）
+            // 0: 手首, 12: 中指の先, 9: 中指の付け根
+            const wrist = landmarks[0];
+            const middleTip = landmarks[12];
+            const middleBase = landmarks[9];
+
+            // 距離計算
+            const distanceTip = Math.sqrt(Math.pow(middleTip.x - wrist.x, 2) + Math.pow(middleTip.y - wrist.y, 2));
+            const distanceBase = Math.sqrt(Math.pow(middleBase.x - wrist.x, 2) + Math.pow(middleBase.y - wrist.y, 2));
+
+            // 判定ロジック: 指先が付け根より遠ければ「パー」、近ければ「グー」
+            // (簡易ロジックなので調整が必要な場合があります)
+            if (distanceTip > distanceBase * 1.5) {
+                // パーの状態
+                if (isHandClosed) {
+                    // グーからパーになった瞬間
+                    counter++;
+                    countDisplay.innerText = counter;
+                    statusDisplay.innerText = "開いた！";
+                    statusDisplay.style.color = "#4caf50";
+                    speak(counter + "回");
+                    isHandClosed = false;
+                }
+            } else if (distanceTip < distanceBase * 1.2) {
+                // グーの状態
+                if (!isHandClosed) {
+                    statusDisplay.innerText = "握って...";
+                    statusDisplay.style.color = "#ff9800";
+                    isHandClosed = true;
+                }
             }
         }
         canvasCtx.restore();
@@ -75,11 +133,14 @@
 
     startBtn.onclick = async () => {
         startBtn.innerText = "起動中...";
+        speak("リハビリを開始します"); // 音声テスト
         try {
-            // スマホの背面カメラを優先する場合は { facingMode: "environment" }
-            // 自撮り側なら { facingMode: "user" }
+            // ★ここでリアカメラを指定
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: 1280, height: 720, facingMode: "user" } 
+                video: { 
+                    facingMode: "environment", // 外側カメラ
+                    width: 1280, height: 720 
+                } 
             });
             videoElement.srcObject = stream;
             videoElement.play();
