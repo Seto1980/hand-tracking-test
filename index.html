@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rehab Counter V2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Rehab Counter V3</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -13,149 +13,376 @@
         background-color: #1e1e1e; color: #fff; margin: 0; overflow: hidden; font-family: sans-serif; 
         display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;
     }
-    /* 情報表示パネル */
-    #info-panel {
-        position: absolute; top: 20px; left: 20px; z-index: 20;
-        background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 10px;
-        text-align: left;
+
+    /* --- 設定画面（オーバーレイ） --- */
+    #settings-overlay {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(30, 30, 30, 0.95); z-index: 100;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 20px; box-sizing: border-box;
     }
-    #count-display { font-size: 3rem; font-weight: bold; color: #4caf50; margin: 0; }
-    #status-display { font-size: 1.2rem; color: #ccc; }
+    .setting-group { margin-bottom: 20px; width: 100%; max-width: 400px; }
+    .setting-title { font-size: 1.2rem; color: #aaa; margin-bottom: 10px; text-align: center; }
+    .btn-group { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .select-btn {
+        padding: 10px 20px; border: 2px solid #555; background: #333; color: #fff;
+        border-radius: 20px; cursor: pointer; font-size: 1rem; flex: 1; text-align: center;
+    }
+    .select-btn.active { background: #007bff; border-color: #007bff; }
+    
+    input[type="number"] { padding: 10px; border-radius: 10px; border: none; width: 80px; text-align: center; font-size: 1.2rem; }
+    
+    #start-app-btn {
+        padding: 15px 50px; background: #28a745; color: white; border: none;
+        border-radius: 30px; font-size: 1.5rem; font-weight: bold; margin-top: 20px; cursor: pointer;
+    }
+
+    /* --- メイン画面 --- */
+    #info-panel {
+        position: absolute; top: 10px; left: 0; width: 100%; z-index: 20;
+        background: rgba(0, 0, 0, 0.6); padding: 10px 0;
+        display: flex; justify-content: space-around; align-items: center;
+    }
+    .info-item { text-align: center; }
+    .info-label { font-size: 0.8rem; color: #ccc; }
+    .info-value { font-size: 1.5rem; font-weight: bold; }
+    #status-text { color: #4caf50; min-width: 100px; }
 
     .container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: #000; }
+    video, canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; }
     
-    video, canvas { 
-        position: absolute; 
-        width: 100%; height: 100%; 
-        object-fit: cover; /* 全画面に広げる */
-        /* リアカメラなので反転させない */
-    }
-    
-    button { 
-        position: absolute; z-index: 30; bottom: 50px;
-        padding: 15px 40px; font-size: 18px; font-weight: bold;
-        cursor: pointer; background: #d93025; color: white; 
-        border: none; border-radius: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    /* リセットボタン */
+    #reset-btn {
+        position: absolute; bottom: 20px; right: 20px; z-index: 30;
+        padding: 10px 20px; background: #555; color: white; border: none; border-radius: 5px;
     }
 </style>
 </head>
 <body>
 
+<div id="settings-overlay">
+    <h1 style="margin-bottom:30px;">リハビリ設定</h1>
+    
+    <div class="setting-group">
+        <div class="setting-title">1. 動きのパターン</div>
+        <div class="btn-group" id="mode-group">
+            <div class="select-btn active" data-mode="GRASP">✊✋<br>握る・離す</div>
+            <div class="select-btn" data-mode="FINGER">👍🖐<br>指折り</div>
+            <div class="select-btn" data-mode="JANKEN">✊✌🖐<br>ジャンケン</div>
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <div class="setting-title">2. 目標回数</div>
+        <div class="btn-group" id="count-group">
+            <div class="select-btn" data-count="10">10回</div>
+            <div class="select-btn" data-count="50">50回</div>
+            <div class="select-btn" data-count="100">100回</div>
+            <input type="number" id="custom-count" placeholder="自由" min="1">
+        </div>
+    </div>
+
+    <button id="start-app-btn">スタート</button>
+</div>
+
 <div id="info-panel">
-    <div id="status-display">待機中...</div>
-    <div id="count-display">0</div>
+    <div class="info-item">
+        <div class="info-label">現在</div>
+        <div class="info-value" id="current-count">0</div>
+    </div>
+    <div class="info-item">
+        <div class="info-value" id="status-text">待機中</div>
+    </div>
+    <div class="info-item">
+        <div class="info-label">目標</div>
+        <div class="info-value" id="target-count-display">--</div>
+    </div>
 </div>
 
 <div class="container">
     <video id="inputVideo" playsinline></video>
     <canvas id="outputCanvas"></canvas>
-    <button id="startBtn">リハビリ開始 (リアカメラ)</button>
 </div>
+<button id="reset-btn">設定に戻る</button>
 
 <script>
-    const videoElement = document.getElementById('inputVideo');
-    const canvasElement = document.getElementById('outputCanvas');
-    const canvasCtx = canvasElement.getContext('2d');
-    const startBtn = document.getElementById('startBtn');
-    const countDisplay = document.getElementById('count-display');
-    const statusDisplay = document.getElementById('status-display');
-
-    let counter = 0;
-    let isHandClosed = false; // 手の状態管理
-
-    // 音声合成の準備
+    // --- 変数定義 ---
+    let targetCount = 10;
+    let currentCount = 0;
+    let mode = 'GRASP'; // GRASP, FINGER, JANKEN
+    let isProcessing = false;
+    let stepState = 0; // 各モードの進行状況管理
+    
+    // 音声合成
     const synth = window.speechSynthesis;
     function speak(text) {
-        if (synth.speaking) return; // 喋ってる途中ならキャンセル
+        if (synth.speaking) return;
         const ut = new SpeechSynthesisUtterance(text);
         ut.lang = 'ja-JP';
-        ut.rate = 1.0; // 早さ
         synth.speak(ut);
     }
 
-    const hands = new Hands({locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-    }});
-    
-    hands.setOptions({
-        maxNumHands: 1, // リハビリ用なので片手に限定
-        modelComplexity: 1,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
+    // --- UI操作 ---
+    const settingsOverlay = document.getElementById('settings-overlay');
+    const modeBtns = document.querySelectorAll('#mode-group .select-btn');
+    const countBtns = document.querySelectorAll('#count-group .select-btn');
+    const customCountInput = document.getElementById('custom-count');
+    const currentCountDisplay = document.getElementById('current-count');
+    const targetCountDisplay = document.getElementById('target-count-display');
+    const statusText = document.getElementById('status-text');
+
+    // モード選択
+    modeBtns.forEach(btn => {
+        btn.onclick = () => {
+            modeBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            mode = btn.dataset.mode;
+        };
     });
 
-    hands.onResults((results) => {
+    // 回数選択
+    countBtns.forEach(btn => {
+        btn.onclick = () => {
+            countBtns.forEach(b => b.classList.remove('active'));
+            customCountInput.value = ''; // 自由入力をクリア
+            btn.classList.add('active');
+            targetCount = parseInt(btn.dataset.count);
+        };
+    });
+    customCountInput.oninput = () => {
+        countBtns.forEach(b => b.classList.remove('active'));
+        targetCount = parseInt(customCountInput.value) || 10;
+    };
+
+    // スタートボタン
+    document.getElementById('start-app-btn').onclick = () => {
+        settingsOverlay.style.display = 'none';
+        currentCount = 0;
+        stepState = 0;
+        currentCountDisplay.innerText = 0;
+        targetCountDisplay.innerText = targetCount;
+        startCamera();
+        
+        let modeName = "";
+        if(mode === 'GRASP') modeName = "握って、離す運動。";
+        if(mode === 'FINGER') modeName = "指折り数え運動。グーから始めます。";
+        if(mode === 'JANKEN') modeName = "ジャンケン運動。グー、チョキ、パーの順です。";
+        speak(modeName + "目標、" + targetCount + "回、スタート！");
+    };
+
+    // リセットボタン
+    document.getElementById('reset-btn').onclick = () => {
+        location.reload();
+    };
+
+    // --- MediaPipe 設定 ---
+    const videoElement = document.getElementById('inputVideo');
+    const canvasElement = document.getElementById('outputCanvas');
+    const canvasCtx = canvasElement.getContext('2d');
+
+    const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+
+    hands.onResults(onResults);
+
+    // --- 解析ロジック ---
+    function onResults(results) {
         canvasCtx.save();
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
         
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             const landmarks = results.multiHandLandmarks[0];
-            
-            // 骨格描画
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
             drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
 
-            // 簡易的なグーパー判定（指先と手首の距離で判定）
-            // 0: 手首, 12: 中指の先, 9: 中指の付け根
-            const wrist = landmarks[0];
-            const middleTip = landmarks[12];
-            const middleBase = landmarks[9];
-
-            // 距離計算
-            const distanceTip = Math.sqrt(Math.pow(middleTip.x - wrist.x, 2) + Math.pow(middleTip.y - wrist.y, 2));
-            const distanceBase = Math.sqrt(Math.pow(middleBase.x - wrist.x, 2) + Math.pow(middleBase.y - wrist.y, 2));
-
-            // 判定ロジック: 指先が付け根より遠ければ「パー」、近ければ「グー」
-            // (簡易ロジックなので調整が必要な場合があります)
-            if (distanceTip > distanceBase * 1.5) {
-                // パーの状態
-                if (isHandClosed) {
-                    // グーからパーになった瞬間
-                    counter++;
-                    countDisplay.innerText = counter;
-                    statusDisplay.innerText = "開いた！";
-                    statusDisplay.style.color = "#4caf50";
-                    speak(counter + "回");
-                    isHandClosed = false;
+            // 目標達成なら何もしない
+            if(currentCount >= targetCount) {
+                if(statusText.innerText !== "達成！") {
+                    statusText.innerText = "達成！";
+                    statusText.style.color = "gold";
+                    speak("目標達成です！お疲れ様でした！");
                 }
-            } else if (distanceTip < distanceBase * 1.2) {
-                // グーの状態
-                if (!isHandClosed) {
-                    statusDisplay.innerText = "握って...";
-                    statusDisplay.style.color = "#ff9800";
-                    isHandClosed = true;
-                }
+                canvasCtx.restore();
+                return;
             }
+
+            // モード別処理
+            if (mode === 'GRASP') processGrasp(landmarks);
+            else if (mode === 'FINGER') processFingerCount(landmarks);
+            else if (mode === 'JANKEN') processJanken(landmarks);
         }
         canvasCtx.restore();
-    });
+    }
 
-    startBtn.onclick = async () => {
-        startBtn.innerText = "起動中...";
-        speak("リハビリを開始します"); // 音声テスト
+    // --- 1. 握る・離すモード ---
+    // stepState: 0=握り待ち, 1=開き待ち
+    function processGrasp(landmarks) {
+        const fingers = countExtendedFingers(landmarks);
+        // グー判定(0-1本)
+        if (fingers <= 1) {
+            if (stepState === 0) {
+                stepState = 1; // 握ったことを記録
+                statusText.innerText = "開いて！";
+            }
+        } 
+        // パー判定(4-5本)
+        else if (fingers >= 4) {
+            if (stepState === 1) { // 握った状態から開いた場合
+                incrementCount();
+                stepState = 0; // 次の握り待ちへ
+                statusText.innerText = "握って";
+            }
+        }
+    }
+
+    // --- 2. 指折りモード (1から5まで数える) ---
+    // stepState: 0=グー(開始), 1=親指OK, 2=人差し指OK... 5=全部OK
+    function processFingerCount(landmarks) {
+        const extended = getExtendedFingersArray(landmarks); // [親, 人, 中, 薬, 小] のtrue/false
+        const count = extended.filter(Boolean).length;
+
+        // 状態リセット（グーに戻ったら最初から）
+        if (count === 0 && stepState === 5) {
+            stepState = 0; 
+            statusText.innerText = "親指から";
+            return;
+        }
+
+        // 順番チェック
+        // Step 1: 親指だけ (Thumb)
+        if (stepState === 0 && count === 1 && extended[0]) {
+            speak("1"); stepState = 1; statusText.innerText = "次は人差し指";
+        }
+        // Step 2: 親+人 (Thumb + Index)
+        else if (stepState === 1 && count === 2 && extended[1]) {
+            speak("2"); stepState = 2;
+        }
+        // Step 3: +中 (Middle)
+        else if (stepState === 2 && count === 3 && extended[2]) {
+            speak("3"); stepState = 3;
+        }
+        // Step 4: +薬 (Ring)
+        else if (stepState === 3 && count === 4 && extended[3]) {
+            speak("4"); stepState = 4; statusText.innerText = "最後は小指";
+        }
+        // Step 5: +小 (Pinky) -> 完了
+        else if (stepState === 4 && count === 5 && extended[4]) {
+            speak("5"); 
+            incrementCount(); // 1セット完了
+            stepState = 5; // 完了状態
+            statusText.innerText = "グーに戻して";
+        }
+    }
+
+    // --- 3. ジャンケンモード (グー→チョキ→パー) ---
+    // stepState: 0=グー待ち, 1=チョキ待ち, 2=パー待ち, 3=完了待機
+    function processJanken(landmarks) {
+        const shape = detectJankenShape(landmarks);
+        
+        // グー (Gu)
+        if (stepState === 0 && shape === 'ROCK') {
+            speak("グー");
+            stepState = 1; statusText.innerText = "次はチョキ";
+        }
+        // チョキ (Choki)
+        else if (stepState === 1 && shape === 'SCISSORS') {
+            speak("チョキ");
+            stepState = 2; statusText.innerText = "最後はパー";
+        }
+        // パー (Pa)
+        else if (stepState === 2 && shape === 'PAPER') {
+            speak("パー");
+            incrementCount(); // 1セット完了
+            stepState = 3; statusText.innerText = "グーに戻して";
+        }
+        // リセット (またグーを出したら次へ)
+        else if (stepState === 3 && shape === 'ROCK') {
+             // すぐに反応せず、一旦リセット扱いにするならここ
+             stepState = 0;
+             // 続けてカウントしたいならここを0にして音声を出す
+             speak("グー");
+             stepState = 1; statusText.innerText = "次はチョキ";
+        }
+    }
+
+    // --- 共通関数 ---
+    function incrementCount() {
+        currentCount++;
+        currentCountDisplay.innerText = currentCount;
+        // 指折りとジャンケンの場合は「1回」とか「1セット」と言う
+        if (mode !== 'GRASP') {
+            speak(currentCount + "セット完了");
+        } else {
+            speak(currentCount + "回");
+        }
+    }
+
+    // 指が伸びているか判定するヘルパー関数
+    function getExtendedFingersArray(landmarks) {
+        // 0:親, 1:人, 2:中, 3:薬, 4:小
+        const fingerTips = [4, 8, 12, 16, 20];
+        const fingerPips = [2, 6, 10, 14, 18]; // 親指はMCP(2)、他はPIP
+        
+        const extended = [false, false, false, false, false];
+
+        // 親指判定 (X座標の差分で簡易判定：右手を想定して左にあるか)
+        // ※汎用性を高めるため、手首(0)とその他の位置関係で見るのがベターですが、簡易的に
+        // 親指は「指先」と「小指の付け根(17)」の距離 vs 「親指付け根(2)」と「17」の距離で比較
+        const wrist = landmarks[0];
+        const thumbTip = landmarks[4];
+        const pinkyBase = landmarks[17];
+        
+        // 親指が開いているか（小指の付け根から遠いか）
+        const distThumbTip = dist(thumbTip, pinkyBase);
+        const distThumbBase = dist(landmarks[2], pinkyBase);
+        extended[0] = distThumbTip > distThumbBase * 1.2;
+
+        // 他の4本 (指先が関節より上にあるか。Y座標は上が0なので Tip < Pip)
+        for (let i = 1; i <= 4; i++) {
+            extended[i] = landmarks[fingerTips[i]].y < landmarks[fingerPips[i]].y;
+        }
+        return extended;
+    }
+
+    function countExtendedFingers(landmarks) {
+        const arr = getExtendedFingersArray(landmarks);
+        return arr.filter(Boolean).length;
+    }
+
+    function detectJankenShape(landmarks) {
+        const extended = getExtendedFingersArray(landmarks);
+        const count = extended.filter(Boolean).length;
+        // 親指はジャンケンの形によって微妙なので、親指以外の4本を重視
+        const index = extended[1];
+        const middle = extended[2];
+        const ring = extended[3];
+        const pinky = extended[4];
+
+        if (count <= 1) return 'ROCK'; // ほぼ閉じてる
+        if (count >= 4) return 'PAPER'; // ほぼ開いてる
+        if (index && middle && !ring && !pinky) return 'SCISSORS'; // チョキ
+        return 'UNKNOWN';
+    }
+
+    function dist(p1, p2) {
+        return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+    }
+
+    async function startCamera() {
         try {
-            // ★ここでリアカメラを指定
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: "environment", // 外側カメラ
-                    width: 1280, height: 720 
-                } 
+                video: { facingMode: "environment", width: 1280, height: 720 } 
             });
             videoElement.srcObject = stream;
             videoElement.play();
-            
             videoElement.onloadedmetadata = () => {
                 canvasElement.width = videoElement.videoWidth;
                 canvasElement.height = videoElement.videoHeight;
-                startBtn.style.display = "none"; 
                 processVideo();
             };
-        } catch (err) {
-            alert("カメラエラー: " + err.name);
-            startBtn.innerText = "再試行";
-        }
-    };
+        } catch (err) { alert("カメラエラー: " + err.name); }
+    }
 
     async function processVideo() {
         await hands.send({image: videoElement});
