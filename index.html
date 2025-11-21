@@ -303,4 +303,71 @@
             speak("グー"); stepState = 1; statusText.innerText = "次はチョキ";
         } else if (stepState === 1 && shape === 'SCISSORS') {
             speak("チョキ"); stepState = 2; statusText.innerText = "最後はパー";
-        } else if (stepState === 2 && shape
+        } else if (stepState === 2 && shape === 'PAPER') {
+            speak("パー"); incrementCount();
+            stepState = 3; statusText.innerText = "グーに戻して";
+        } else if (stepState === 3 && shape === 'ROCK') {
+             stepState = 0; // ループさせる場合はここを変える
+             speak("グー"); stepState = 1; statusText.innerText = "次はチョキ";
+        }
+    }
+
+    function incrementCount() {
+        currentCount++;
+        currentCountDisplay.innerText = currentCount;
+        if (mode === 'GRASP') speak(currentCount + "回");
+        else speak(currentCount + "セット完了");
+    }
+
+    // --- 指の判定ロジック (核心部) ---
+    function getExtendedFingersArray(landmarks) {
+        const extended = [false, false, false, false, false];
+        
+        // 0:親指 (Thumb)
+        // 親指の判定は「角度」や「X座標」に頼ると不安定。
+        // 「親指の先端(4)」が「小指の付け根(17)」から十分離れているかで判定するのが最も汎用的。
+        // 比較対象として「人差し指の付け根(5)と小指の付け根(17)の距離」を使う。
+        const p4 = landmarks[4];  // Tip
+        const p17 = landmarks[17]; // Pinky MCP
+        const p5 = landmarks[5];   // Index MCP
+        
+        const distThumbToPinky = Math.hypot(p4.x - p17.x, p4.y - p17.y);
+        const distIndexToPinky = Math.hypot(p5.x - p17.x, p5.y - p17.y);
+        
+        // 親指が「開いている」なら、小指の付け根から遠くにあるはず
+        // 閾値は調整が必要だが、1.2倍程度で試行
+        extended[0] = distThumbToPinky > (distIndexToPinky * 1.2);
+
+        // 1~4: 他の指 (Y座標で判定: 指先が関節より上ならOpen)
+        const fingerTips = [null, 8, 12, 16, 20];
+        const fingerPips = [null, 6, 10, 14, 18];
+        
+        for (let i = 1; i <= 4; i++) {
+            // 画像座標系は上が0なので、yが小さい方が「上」
+            extended[i] = landmarks[fingerTips[i]].y < landmarks[fingerPips[i]].y;
+        }
+        return extended;
+    }
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: 1280, height: 720 } 
+            });
+            videoElement.srcObject = stream;
+            videoElement.play();
+            videoElement.onloadedmetadata = () => {
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                processVideo();
+            };
+        } catch (err) { alert("カメラエラー: " + err.name); }
+    }
+
+    async function processVideo() {
+        await hands.send({image: videoElement});
+        requestAnimationFrame(processVideo);
+    }
+</script>
+</body>
+</html>
