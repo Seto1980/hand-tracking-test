@@ -1,27 +1,21 @@
-const CACHE_NAME = 'rehab-v11-network-first';
-const urlsToCache = [
-  './',
-  './index.html',
-  './icon.png',
-  './manifest.json'
-];
+const CACHE_NAME = 'rehab-cleanup-v1';
 
-// インストール時：最低限のファイルを確保
-self.addEventListener('install', function(event) {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(function(cache) {
-        return cache.addAll(urlsToCache);
-      })
-  );
+// インストール時：すぐに新しい命令を適用する
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
 });
 
-// 通信時：【重要】まずはネットを見に行く。ダメならキャッシュを使う。
-self.addEventListener('fetch', function(event) {
-  event.respondWith(
-    fetch(event.request)
-      .catch(function() {
-        return caches.match(event.request);
-      })
+// 起動時：古いキャッシュ（ゴミ）をすべて削除する
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keyList) => {
+      return Promise.all(keyList.map((key) => caches.delete(key)));
+    })
   );
+  return self.clients.claim();
+});
+
+// 通信時：キャッシュを使わず、必ずインターネットに取りに行く
+self.addEventListener('fetch', (event) => {
+  event.respondWith(fetch(event.request));
 });
