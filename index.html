@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Rehab Counter V6</title>
+<title>Rehab Counter V7</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -54,6 +54,9 @@
     #finger-labels {
         font-size: 0.7rem; color: #aaa; margin-top: 2px; letter-spacing: 8px;
     }
+    #hand-side-label {
+        position: absolute; top: 5px; right: 10px; font-size: 0.8rem; color: #00bcd4; font-weight: bold;
+    }
 
     /* 達成メッセージ */
     #celebration-msg {
@@ -73,13 +76,13 @@
 <body>
 
 <div id="settings-overlay">
-    <h1 style="margin-bottom:20px;">リハビリ設定 V6</h1>
+    <h1 style="margin-bottom:20px;">リハビリ設定 V7</h1>
     
     <div class="setting-group">
         <div class="setting-title">1. 動きのパターン</div>
         <div class="btn-group" id="mode-group">
             <div class="select-btn active" data-mode="GRASP">✊✋<br>握る</div>
-            <div class="select-btn" data-mode="FINGER">👍🖐<br>指折り<br>(順不同)</div>
+            <div class="select-btn" data-mode="FINGER">👍🖐<br>指折り</div>
             <div class="select-btn" data-mode="JANKEN">✊✌🖐<br>ジャンケン</div>
         </div>
     </div>
@@ -99,6 +102,7 @@
 <div id="celebration-msg">スゴイですね！<br>目標達成！</div>
 
 <div id="info-panel">
+    <div id="hand-side-label"></div>
     <div class="info-row">
         <div class="info-item">
             <div class="info-label">現在</div>
@@ -123,15 +127,18 @@
 <button id="reset-btn">設定に戻る</button>
 
 <script>
-    // 変数
+    // --- 状態管理変数 ---
     let targetCount = 10;
     let currentCount = 0;
     let mode = 'GRASP'; 
     let stepState = 0; 
     let isCelebrated = false;
     
-    // 指折りモード用の履歴 [親, 人, 中, 薬, 小]
+    // 指折り用: 曲げた指を記憶
     let fingerLatch = [false, false, false, false, false];
+    
+    // 同時判定防止用: 前フレームで曲がっていた本数
+    let prevBentCount = 0;
 
     // 音声合成
     const synth = window.speechSynthesis;
@@ -143,7 +150,7 @@
         synth.speak(ut);
     }
 
-    // UI参照
+    // UI要素
     const settingsOverlay = document.getElementById('settings-overlay');
     const modeBtns = document.querySelectorAll('#mode-group .select-btn');
     const countBtns = document.querySelectorAll('#count-group .select-btn');
@@ -153,8 +160,9 @@
     const statusText = document.getElementById('status-text');
     const fingerVisualizer = document.getElementById('finger-visualizer');
     const celebrationMsg = document.getElementById('celebration-msg');
+    const handSideLabel = document.getElementById('hand-side-label');
 
-    // 設定画面ロジック
+    // ボタン設定
     modeBtns.forEach(btn => {
         btn.onclick = () => {
             modeBtns.forEach(b => b.classList.remove('active'));
@@ -175,31 +183,42 @@
         targetCount = parseInt(customCountInput.value) || 10;
     };
 
-    // スタート
+    // スタート処理
     document.getElementById('start-app-btn').onclick = () => {
         settingsOverlay.style.display = 'none';
         currentCount = 0;
         stepState = 0;
         isCelebrated = false;
         fingerLatch = [false, false, false, false, false];
-        updateVisualizer([false,false,false,false,false]);
+        prevBentCount = 0;
         
         celebrationMsg.style.display = 'none';
         currentCountDisplay.innerText = 0;
         targetCountDisplay.innerText = targetCount;
-        statusText.innerText = "手を映してね";
         
-        startCamera();
+        // 指折りモードの初期表示は「・」がスタート
+        updateVisualizer([false,false,false,false,false]); 
         
         let modeName = "";
-        if(mode === 'GRASP') modeName = "握って、離す運動。";
-        if(mode === 'FINGER') modeName = "指折り。すべての指を一度開いてください。";
-        if(mode === 'JANKEN') modeName = "ジャンケン。グー、チョキ、パーの順です。";
+        if(mode === 'GRASP') {
+            modeName = "握る運動。";
+            statusText.innerText = "握って！";
+        }
+        if(mode === 'FINGER') {
+            modeName = "指折り運動。パーから始めて、指を曲げてください。";
+            statusText.innerText = "パーにして";
+        }
+        if(mode === 'JANKEN') {
+            modeName = "ジャンケン。";
+            statusText.innerText = "グー";
+        }
+        
+        startCamera();
         speak(modeName + "スタート！", true);
     };
     document.getElementById('reset-btn').onclick = () => location.reload();
 
-    // MediaPipe
+    // MediaPipe初期化
     const videoElement = document.getElementById('inputVideo');
     const canvasElement = document.getElementById('outputCanvas');
     const canvasCtx = canvasElement.getContext('2d');
@@ -207,6 +226,7 @@
     hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
     hands.onResults(onResults);
 
+    // --- メインループ ---
     function onResults(results) {
         canvasCtx.save();
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -214,6 +234,13 @@
         
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             const landmarks = results.multiHandLandmarks[0];
+            
+            // 左右判定の表示
+            if (results.multiHandedness && results.multiHandedness.length > 0) {
+                const label = results.multiHandedness[0].label;
+                handSideLabel.innerText = label === 'Left' ? 'Left Hand' : 'Right Hand';
+            }
+
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
             drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
 
@@ -228,17 +255,13 @@
                 return;
             }
 
-            // 指の状態判定（高感度版）
-            const extended = getExtendedFingersV6(landmarks);
-
-            // モード別処理
+            // モード分岐
             if (mode === 'FINGER') {
-                // 指折りモード：履歴を蓄積して表示
-                processFingerAccumulate(extended);
+                processFingerMode(landmarks);
             } else {
-                // 握る・ジャンケン：リアルタイムの状態を表示
+                // 握る・ジャンケンは「伸ばしている指」を判定する従来ロジック
+                const extended = getExtendedStatus(landmarks);
                 updateVisualizer(extended); 
-                
                 if (mode === 'GRASP') processGrasp(extended);
                 else if (mode === 'JANKEN') processJanken(extended);
             }
@@ -246,58 +269,144 @@
         canvasCtx.restore();
     }
 
-    // --- UI更新 ---
-    function updateVisualizer(extended) {
-        // 配列を受け取って 〇 / ・ を表示
-        const marks = extended.map(isOn => isOn ? "〇" : "・").join(" ");
-        fingerVisualizer.innerText = marks;
-    }
+    // --- 判定ロジック (V7) ---
 
-    // --- 判定ロジック ---
+    // ★指折りモード専用ロジック（曲げ判定）
+    function processFingerMode(landmarks) {
+        // 曲がっている指を取得 (角度ベース)
+        const bentStatus = getBentStatus(landmarks);
+        const currentBentCount = bentStatus.filter(Boolean).length;
 
-    // 1. 指折り（蓄積型）
-    function processFingerAccumulate(extended) {
-        // リセット待ち (5本達成後、グーに戻るまで)
+        // リセット待ち (5本達成後、パー(0本)に戻るまで)
         if (stepState === 99) {
-            const count = extended.filter(Boolean).length;
-            updateVisualizer(fingerLatch); // 達成時の状態(全部〇)を維持
-            if (count <= 1) { // グーに戻った
+            updateVisualizer(fingerLatch); // 完了状態(〇〇〇〇〇)を維持
+            if (currentBentCount === 0) { // パーに戻った
                 stepState = 0;
                 fingerLatch = [false, false, false, false, false];
+                prevBentCount = 0;
                 updateVisualizer(fingerLatch);
-                statusText.innerText = "好きな指から";
+                statusText.innerText = "スタート";
                 speak("次へ");
             }
             return;
         }
 
-        // 計測中
-        let changed = false;
-        for(let i=0; i<5; i++) {
-            if (extended[i] && !fingerLatch[i]) {
-                fingerLatch[i] = true;
-                changed = true;
+        // 【同時判定防止ロジック】
+        // 前回のフレームで「2本未満」しか曲がっていないのに
+        // 今回いきなり「5本全部」曲がっていたら、それは「いきなりグー」なので無視する
+        if (prevBentCount < 2 && currentBentCount === 5) {
+            // 無効な動きなので更新しない
+            // (ただし、ゆっくり4→5ならOK)
+        } else {
+            // 有効な動き: 履歴を更新
+            for(let i=0; i<5; i++) {
+                if (bentStatus[i] && !fingerLatch[i]) {
+                    fingerLatch[i] = true;
+                }
             }
         }
-        
-        // 常に現在の蓄積状況を表示
+
+        // 次回判定用に保持
+        prevBentCount = currentBentCount;
+
+        // 表示更新
         updateVisualizer(fingerLatch);
 
         const doneCount = fingerLatch.filter(Boolean).length;
         if (doneCount === 0) {
-             statusText.innerText = "指を広げて";
+             statusText.innerText = "指を曲げて";
         } else if (doneCount < 5) {
              statusText.innerText = "あと " + (5 - doneCount) + " 本";
         } else {
-            // 5本完了
+            // 5本コンプリート
             incrementCount();
             stepState = 99; 
-            statusText.innerText = "グーに戻して";
-            speak("セット完了！グーに戻してください");
+            statusText.innerText = "パーに戻して";
+            speak("セット完了！パーに戻してください");
         }
     }
 
-    // 2. 握る（リアルタイム）
+    // UI更新
+    function updateVisualizer(statusArray) {
+        // 指折りモードなら true=曲げ(〇)
+        // 他モードなら true=伸ばし(〇)
+        // いずれにせよ「Active」なものを〇にする
+        const marks = statusArray.map(isOn => isOn ? "〇" : "・").join(" ");
+        fingerVisualizer.innerText = marks;
+    }
+
+    // --- 角度計算ヘルパー ---
+    function getAngle(A, B, C) {
+        // ベクトル BA と BC の角度を計算
+        const v1 = {x: A.x - B.x, y: A.y - B.y, z: A.z - B.z};
+        const v2 = {x: C.x - B.x, y: C.y - B.y, z: C.z - B.z};
+        
+        // 内積
+        const dot = v1.x * v2.x + v1.y * v2.y + (v1.z * v2.z || 0);
+        // 大きさ
+        const mag1 = Math.sqrt(v1.x*v1.x + v1.y*v1.y + (v1.z*v1.z || 0));
+        const mag2 = Math.sqrt(v2.x*v2.x + v2.y*v2.y + (v2.z*v2.z || 0));
+        
+        const angleRad = Math.acos(dot / (mag1 * mag2));
+        return angleRad * (180 / Math.PI);
+    }
+
+    // ★曲げ判定（角度ベース・高精度）
+    // 戻り値: [親, 人, 中, 薬, 小] で、曲がっていれば true
+    function getBentStatus(landmarks) {
+        const bent = [false, false, false, false, false];
+
+        // 親指 (Thumb): 
+        // 条件1: IP関節(3) または MCP関節(2) が曲がっている (角度 < 150度くらい)
+        // 条件2: 指先(4) が 人差し指の付け根(5) に近い
+        const angleThumbIP = getAngle(landmarks[2], landmarks[3], landmarks[4]);
+        const angleThumbMCP = getAngle(landmarks[1], landmarks[2], landmarks[3]);
+        
+        // 距離判定: 親指先(4) と 人差し指MCP(5) の距離
+        // スケール正規化のため、手首(0)-人差し指MCP(5) の距離を1とする
+        const scale = dist(landmarks[0], landmarks[5]);
+        const distThumbTipToIndex = dist(landmarks[4], landmarks[5]);
+
+        // 親指判定ロジック
+        const isThumbAngleBent = angleThumbIP < 150 || angleThumbMCP < 150;
+        const isThumbPositionClose = distThumbTipToIndex < (scale * 0.9); // 結構緩め
+        bent[0] = isThumbAngleBent && isThumbPositionClose;
+
+        // 指 1~4 (Index ~ Pinky)
+        // PIP関節(6,10,14,18)の角度で判定
+        // 180度=まっすぐ, 90度=直角. 
+        // "50%曲げ" は感覚的に 120度～100度以下なら「曲げようとしている」とみなす
+        // しっかり曲げた判定なら < 100度
+        const fingerJoints = [
+            [5, 6, 7],   // Index: MCP-PIP-DIP
+            [9, 10, 11], // Middle
+            [13, 14, 15],// Ring
+            [17, 18, 19] // Pinky
+        ];
+
+        for (let i = 1; i <= 4; i++) {
+            const [a, b, c] = fingerJoints[i-1];
+            const angle = getAngle(landmarks[a], landmarks[b], landmarks[c]);
+            // 閾値: 110度以下なら「曲げた」とみなす (50%以上の屈曲)
+            bent[i] = angle < 110; 
+        }
+
+        return bent;
+    }
+
+    // 伸ばし判定（従来ロジック・角度ベースに置換も可能だがシンプルに距離比で）
+    function getExtendedStatus(landmarks) {
+        // 曲げ判定の逆
+        const bent = getBentStatus(landmarks);
+        // bentがtrueならextendedはfalse
+        return bent.map(b => !b);
+    }
+
+    function dist(p1, p2) {
+        return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    }
+
+    // 握る・ジャンケンロジック (extended配列を使用)
     function processGrasp(extended) {
         const count = extended.filter(Boolean).length;
         if (count <= 1) {
@@ -307,7 +416,6 @@
         }
     }
 
-    // 3. ジャンケン（リアルタイム）
     function processJanken(extended) {
         const count = extended.filter(Boolean).length;
         let shape = 'UNKNOWN';
@@ -331,58 +439,6 @@
         currentCountDisplay.innerText = currentCount;
         if (mode === 'GRASP') speak(currentCount + "回");
         else speak(currentCount + "セット完了");
-    }
-
-    // ★重要：指の状態判定 V6 (距離ベース・高感度)
-    function getExtendedFingersV6(landmarks) {
-        const extended = [false, false, false, false, false];
-        const wrist = landmarks[0];
-        
-        // 指先と付け根(PIP/MCP)のインデックス
-        // 0:親, 1:人, 2:中, 3:薬, 4:小
-        // 親指は Tip(4) vs IP(3) ではなく、Tip(4) vs IndexMCP(5) の距離などを複合的に見るのが一番安定する
-        // しかし今回はシンプルかつ強力な「手首からの距離」を採用します。
-        
-        // 親指 (Thumb): Tip(4) vs MCP(2)
-        // 人差 (Index): Tip(8) vs PIP(6)
-        // ...
-        const fingerTips = [4, 8, 12, 16, 20];
-        const fingerPips = [2, 6, 10, 14, 18]; // 親指はMCP(2), 他はPIP
-
-        for (let i = 0; i < 5; i++) {
-            const tip = landmarks[fingerTips[i]];
-            const pip = landmarks[fingerPips[i]];
-
-            // 手首(0)からの距離を計算
-            const distTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
-            const distPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
-
-            if (i === 0) {
-                // 【親指の特例判定】
-                // 親指は「手首からの距離」だけだと、畳んだときも距離が長い場合がある。
-                // なので「小指の付け根(17)」からの距離も加味する。
-                const pinkyBase = landmarks[17];
-                const thumbTipToPinky = Math.hypot(tip.x - pinkyBase.x, tip.y - pinkyBase.y);
-                const indexBaseToPinky = Math.hypot(landmarks[5].x - pinkyBase.x, landmarks[5].y - pinkyBase.y);
-                
-                // 条件A: 手首から遠い
-                // 条件B: 小指の付け根から、人差し指の付け根以上に遠い (開いている)
-                const condA = distTip > distPip * 1.05; // 少し緩め
-                const condB = thumbTipToPinky > indexBaseToPinky * 0.9; // かなり緩め
-
-                extended[0] = condA && condB;
-
-            } else {
-                // 【他の4本】
-                // 指先が、関節よりも手首から遠ければ「伸びている」とみなす
-                // 倍率 1.0 だと厳密すぎるので、0.9くらいにして「ちょっと曲がっててもOK」にする
-                extended[i] = distTip > (distPip * 1.1); // 少し厳しめにして誤検知防ぐ? いや、感度よくするなら値を下げる
-                // 感度が悪い＝伸びてると判定されない。値を下げれば判定されやすくなる。
-                // 今回は 1.0 にしてみる（PIPより遠ければ即OK）
-                 extended[i] = distTip > distPip;
-            }
-        }
-        return extended;
     }
 
     async function startCamera() {
