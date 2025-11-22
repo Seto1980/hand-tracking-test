@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rehab-v10-cache';
+const CACHE_NAME = 'rehab-v11-network-first';
 const urlsToCache = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const urlsToCache = [
   './manifest.json'
 ];
 
+// インストール時：最低限のファイルを確保
 self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -15,11 +16,12 @@ self.addEventListener('install', function(event) {
   );
 });
 
+// 通信時：【重要】まずはネットを見に行く。ダメならキャッシュを使う。
 self.addEventListener('fetch', function(event) {
   event.respondWith(
-    caches.match(event.request)
-      .then(function(response) {
-        return response || fetch(event.request);
+    fetch(event.request)
+      .catch(function() {
+        return caches.match(event.request);
       })
   );
 });
