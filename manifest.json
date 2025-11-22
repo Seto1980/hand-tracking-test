@@ -1,6 +1,6 @@
 {
-  "name": "リハビリ支援ツール V10",
-  "short_name": "リハビリV10",
+  "name": "AIリハビリカウンター - 指折り・握り・ジャンケン運動支援",
+  "short_name": "AIリハビリ",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1e1e1e",
