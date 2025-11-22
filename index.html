@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Rehab Counter V8</title>
+<title>Rehab Counter V9</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -40,7 +40,7 @@
         position: absolute; top: 0; left: 0; width: 100%; z-index: 20;
         background: rgba(0, 0, 0, 0.7); padding: 10px 0;
         display: flex; flex-direction: column; align-items: center;
-        pointer-events: none; /* UI操作の邪魔をしない */
+        pointer-events: none; 
     }
     .info-row { display: flex; justify-content: space-around; width: 100%; align-items: center; pointer-events: auto; }
     .info-item { text-align: center; }
@@ -51,12 +51,13 @@
     /* 指認識状況の可視化 */
     #finger-container {
         margin-top: 10px; display: flex; flex-direction: column; align-items: center;
+        background: rgba(0,0,0,0.5); padding: 5px 20px; border-radius: 10px;
     }
     #finger-visualizer {
         font-family: monospace; font-size: 1.5rem; color: #00FF00; letter-spacing: 5px; font-weight: bold;
     }
     #finger-labels {
-        font-size: 0.7rem; color: #aaa; margin-top: 2px; letter-spacing: 8px;
+        font-size: 0.8rem; color: #fff; margin-top: 2px; letter-spacing: 8px; font-weight: bold;
     }
     #hand-side-label {
         position: absolute; top: 5px; right: 10px; font-size: 0.8rem; color: #00bcd4; font-weight: bold;
@@ -80,7 +81,7 @@
 <body>
 
 <div id="settings-overlay">
-    <h1 style="margin-bottom:20px;">リハビリ設定 V8</h1>
+    <h1 style="margin-bottom:20px;">リハビリ設定 V9</h1>
     
     <div class="setting-group">
         <div class="setting-title">1. 動きのパターン</div>
@@ -141,25 +142,22 @@
     let isCelebrated = false;
     let fingerLatch = [false, false, false, false, false];
     let prevBentCount = 0;
-    let currentHandedness = 'Left'; // デフォルト
     
-    // ロスト対策: 連続ロストフレーム数
+    // 画面上の指の並び順 (trueなら 親→小, falseなら 小→親)
+    let isVisualOrderNormal = true;
+
+    // ロスト対策
     let lostFrames = 0;
-    const LOST_THRESHOLD = 15; // 約0.5秒はロストしても耐える
+    const LOST_THRESHOLD = 15; 
 
     // 音声合成
     const synth = window.speechSynthesis;
     function speak(text, force = false) {
-        // force=trueなら、現在発声中のものをキャンセルして割り込む
-        if (force && synth.speaking) {
-            synth.cancel();
-        }
-        // forceでない場合、すでに喋ってたらスキップ(重複防止)
+        if (force && synth.speaking) synth.cancel(); // 割り込み
         if (!force && synth.speaking) return;
-
         const ut = new SpeechSynthesisUtterance(text);
         ut.lang = 'ja-JP';
-        ut.rate = 1.2; // 少し早口にして遅延感を減らす
+        ut.rate = 1.3; // スピードアップ
         synth.speak(ut);
     }
 
@@ -176,7 +174,7 @@
     const celebrationMsg = document.getElementById('celebration-msg');
     const handSideLabel = document.getElementById('hand-side-label');
 
-    // 設定ロジック
+    // 設定
     modeBtns.forEach(btn => {
         btn.onclick = () => {
             modeBtns.forEach(b => b.classList.remove('active'));
@@ -206,7 +204,6 @@
         fingerLatch = [false, false, false, false, false];
         prevBentCount = 0;
         lostFrames = 0;
-        
         celebrationMsg.style.display = 'none';
         currentCountDisplay.innerText = 0;
         targetCountDisplay.innerText = targetCount;
@@ -230,27 +227,36 @@
     hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
     hands.onResults(onResults);
 
-    // --- メイン処理 ---
     function onResults(results) {
         canvasCtx.save();
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
         
-        // 手が見つかった場合
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            lostFrames = 0; // ロストカウンタ リセット
+            lostFrames = 0; 
             const landmarks = results.multiHandLandmarks[0];
             
-            // 左右判定とUI反転処理
-            if (results.multiHandedness && results.multiHandedness.length > 0) {
-                const label = results.multiHandedness[0].label;
-                if (currentHandedness !== label) {
-                    currentHandedness = label;
-                    updateHandLabels(label); // ラベルの並び順を更新
-                }
-                handSideLabel.innerText = label === 'Left' ? 'Left Hand (標準)' : 'Right Hand (反転)';
+            // --- 🖐️ ダイナミックな並び順判定 ---
+            // 親指(4) と 小指(20) の X座標を比較
+            // 画面左(0) <---> 画面右(1)
+            // 親指のX < 小指のX ならば、[親...小] の並び
+            // 小指のX < 親指のX ならば、[小...親] の並び
+            const thumbX = landmarks[4].x;
+            const pinkyX = landmarks[20].x;
+            isVisualOrderNormal = thumbX < pinkyX;
+            
+            // ラベルの更新
+            if (isVisualOrderNormal) {
+                fingerLabels.innerText = "親 人 中 薬 小";
+            } else {
+                fingerLabels.innerText = "小 薬 中 人 親";
             }
+            
+            // 左右ラベル
+            const handedness = results.multiHandedness[0].label;
+            handSideLabel.innerText = handedness === 'Left' ? 'Left Hand' : 'Right Hand';
 
+            // 描画
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
             drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
 
@@ -264,15 +270,12 @@
             }
             if (isCelebrated) { canvasCtx.restore(); return; }
 
-            // --- 処理実行 ---
-            // 握り・ジャンケンは「伸びている指」を判定
-            // 指折りは「曲がっている指」を判定
-            const bentStatus = getBentStatus(landmarks); // [親, 人, 中, 薬, 小]
+            // 判定処理
+            const bentStatus = getBentStatus(landmarks); 
             
             if (mode === 'FINGER') {
                 processFingerMode(bentStatus);
             } else {
-                // 握り・ジャンケンは「伸びている = !bent」
                 const extended = bentStatus.map(b => !b);
                 updateVisualizer(extended);
                 if (mode === 'GRASP') processGrasp(extended);
@@ -280,34 +283,18 @@
             }
 
         } else {
-            // 手が見つからない場合 (ロスト対策)
             lostFrames++;
-            if (lostFrames < LOST_THRESHOLD) {
-                // 短時間のロストなら無視して、前回の状態を維持 (音声も止めない)
-            } else {
-                // 長時間ロストしたらリセット表示
-                handSideLabel.innerText = "Searching...";
-            }
+            if (lostFrames >= LOST_THRESHOLD) handSideLabel.innerText = "Searching...";
         }
         canvasCtx.restore();
     }
 
-    // --- UI更新ロジック (左右反転対応) ---
-    function updateHandLabels(handedness) {
-        if (handedness === 'Right') {
-            // 右手の場合: 小指〜親指 の順に表示
-            fingerLabels.innerText = "小 薬 中 人 親";
-        } else {
-            // 左手の場合: 親指〜小指 の順に表示
-            fingerLabels.innerText = "親 人 中 薬 小";
-        }
-    }
-
+    // --- UI更新 (並び順対応) ---
     function updateVisualizer(statusArray) {
-        // statusArray は常に [親, 人, 中, 薬, 小] の順で来る
-        // 右手の場合は、表示用に配列を逆転させる
+        // statusArray は常に [親, 人, 中, 薬, 小] の順
+        // isVisualOrderNormal が false (小指が左) なら、表示用に配列を反転する
         let displayArr = [...statusArray];
-        if (currentHandedness === 'Right') {
+        if (!isVisualOrderNormal) {
             displayArr.reverse();
         }
         const marks = displayArr.map(isOn => isOn ? "〇" : "・").join(" ");
@@ -316,13 +303,15 @@
 
     // --- 判定ロジック ---
 
-    // 1. 指折り (曲げ判定)
+    // 1. 指折り (カウントアップ機能付き)
     function processFingerMode(bentStatus) {
-        const currentBentCount = bentStatus.filter(Boolean).length;
+        // 現在完了している本数を計算
+        const beforeCount = fingerLatch.filter(Boolean).length;
 
         // リセット待ち
         if (stepState === 99) {
             updateVisualizer(fingerLatch);
+            const currentBentCount = bentStatus.filter(Boolean).length;
             if (currentBentCount === 0) { 
                 stepState = 0;
                 fingerLatch = [false,false,false,false,false];
@@ -334,11 +323,13 @@
             return;
         }
 
-        // 同時曲げ制限
+        const currentBentCount = bentStatus.filter(Boolean).length;
+
+        // いきなりグー防止
         if (prevBentCount < 2 && currentBentCount === 5) {
-            // 無効: いきなりグー
+            // 無視
         } else {
-            // 蓄積
+            // 履歴更新
             for(let i=0; i<5; i++) {
                 if (bentStatus[i]) fingerLatch[i] = true;
             }
@@ -346,28 +337,39 @@
         prevBentCount = currentBentCount;
         updateVisualizer(fingerLatch);
 
-        const doneCount = fingerLatch.filter(Boolean).length;
-        if (doneCount === 0) { statusText.innerText = "指を曲げて"; }
-        else if (doneCount < 5) { statusText.innerText = "あと " + (5 - doneCount) + " 本"; }
-        else {
+        // ★カウント音声ロジック
+        const afterCount = fingerLatch.filter(Boolean).length;
+        if (afterCount > beforeCount && afterCount < 5) {
+            // 本数が増えたら、その数字を言う
+            speak(afterCount.toString(), true);
+        }
+
+        if (afterCount === 0) { statusText.innerText = "指を曲げて"; }
+        else if (afterCount < 5) { statusText.innerText = "あと " + (5 - afterCount) + " 本"; }
+        else if (afterCount === 5 && stepState !== 99) {
+            // 5本完了の瞬間
+            speak("5", true); // まず「5」と言う
+            // 少し遅れてセット完了を言うためのフラグ管理等はシンプルにするため
+            // 続けて発声させる
+            setTimeout(() => speak("セット完了", false), 600); 
+            
             incrementCount();
             stepState = 99; 
             statusText.innerText = "パーに戻して";
-            speak("セット完了", true);
         }
     }
 
-    // 2. 握る (伸ばし判定 extended)
+    // 2. 握る
     function processGrasp(extended) {
         const count = extended.filter(Boolean).length;
-        if (count <= 1) { // ほぼグー
+        if (count <= 1) { 
             if (stepState === 0) { stepState = 1; statusText.innerText = "開いて！"; }
-        } else if (count >= 4) { // ほぼパー
+        } else if (count >= 4) { 
             if (stepState === 1) { incrementCount(); stepState = 0; statusText.innerText = "握って"; }
         }
     }
 
-    // 3. ジャンケン (伸ばし判定 extended)
+    // 3. ジャンケン
     function processJanken(extended) {
         const count = extended.filter(Boolean).length;
         let shape = 'UNKNOWN';
@@ -375,7 +377,6 @@
         else if (count >= 4) shape = 'PAPER';
         else if (extended[1] && extended[2] && !extended[3] && !extended[4]) shape = 'SCISSORS';
 
-        // ジャンケンは素早いので force=true で即時発声
         if (stepState === 0 && shape === 'ROCK') {
             speak("グー", true); stepState = 1; statusText.innerText = "次はチョキ";
         } else if (stepState === 1 && shape === 'SCISSORS') {
@@ -390,11 +391,14 @@
     function incrementCount() {
         currentCount++;
         currentCountDisplay.innerText = currentCount;
-        if (mode === 'GRASP') speak(currentCount + "回", true);
-        else speak(currentCount + "セット完了", true);
+        // 指折り以外はここでカウント発声
+        if (mode !== 'FINGER') {
+            if (mode === 'GRASP') speak(currentCount + "回", true);
+            else speak(currentCount + "セット完了", true);
+        }
     }
 
-    // --- 角度計算 (回転耐性強化) ---
+    // 角度計算
     function getAngle(A, B, C) {
         const v1 = {x: A.x - B.x, y: A.y - B.y, z: A.z - B.z};
         const v2 = {x: C.x - B.x, y: C.y - B.y, z: C.z - B.z};
@@ -404,26 +408,22 @@
         return Math.acos(Math.min(Math.max(dot / (mag1 * mag2), -1), 1)) * (180 / Math.PI);
     }
 
-    // ★曲げ判定 V8 (角度 + 相対距離)
+    // 曲げ判定
     function getBentStatus(landmarks) {
         const bent = [false, false, false, false, false];
-
-        // スケール基準 (手首-中指付け根)
         const handScale = Math.hypot(landmarks[0].x - landmarks[9].x, landmarks[0].y - landmarks[9].y);
 
-        // 親指: 角度 と 位置
+        // 親指: 角度(IP) + 位置(小指付け根との距離)
         const angleThumbIP = getAngle(landmarks[2], landmarks[3], landmarks[4]);
-        // 親指先(4)と小指付け根(17)の距離 (閉じると近づく)
         const distThumbToPinkyBase = Math.hypot(landmarks[4].x - landmarks[17].x, landmarks[4].y - landmarks[17].y);
-        // 判定: 角度が急 または 小指付け根に近い
         bent[0] = angleThumbIP < 160 || distThumbToPinkyBase < (handScale * 0.8);
 
-        // 他の指: 角度のみで判定 (110度未満なら曲げ)
+        // 他の指: 角度のみ
         const joints = [[5,6,7], [9,10,11], [13,14,15], [17,18,19]];
         for (let i = 0; i < 4; i++) {
             const [a, b, c] = joints[i];
             const angle = getAngle(landmarks[a], landmarks[b], landmarks[c]);
-            bent[i+1] = angle < 120; // 少し甘めに120度
+            bent[i+1] = angle < 120;
         }
         return bent;
     }
