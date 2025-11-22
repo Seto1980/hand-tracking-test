@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Rehab Counter V5.1</title>
+<title>Rehab Counter V6</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -13,15 +13,6 @@
         background-color: #1e1e1e; color: #fff; margin: 0; overflow: hidden; font-family: sans-serif; 
         display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;
     }
-
-    /* --- LINE警告 --- */
-    #line-warning {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: #d93025; z-index: 9999; display: none;
-        flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;
-    }
-    #line-warning h2 { color: white; font-size: 1.5rem; margin-bottom: 20px; }
-    #line-warning p { color: white; font-size: 1rem; line-height: 1.6; }
 
     /* --- 設定画面 --- */
     #settings-overlay {
@@ -57,7 +48,7 @@
     #status-text { color: #4caf50; font-size: 1.2rem; min-width: 100px; }
     
     /* 指認識状況の可視化 */
-    #finger-history {
+    #finger-visualizer {
         font-family: monospace; font-size: 1.5rem; color: #00FF00; margin-top: 10px; letter-spacing: 5px; font-weight: bold;
     }
     #finger-labels {
@@ -81,13 +72,8 @@
 </head>
 <body>
 
-<div id="line-warning">
-    <h2>⚠️ カメラが使えません</h2>
-    <p>右下のメニューから<br>「ブラウザで開く」<br>を選択してください。</p>
-</div>
-
 <div id="settings-overlay">
-    <h1 style="margin-bottom:20px;">リハビリ設定 V5.1</h1>
+    <h1 style="margin-bottom:20px;">リハビリ設定 V6</h1>
     
     <div class="setting-group">
         <div class="setting-title">1. 動きのパターン</div>
@@ -126,7 +112,7 @@
             <div class="info-value" id="target-count-display">--</div>
         </div>
     </div>
-    <div id="finger-history">・ ・ ・ ・ ・</div>
+    <div id="finger-visualizer">・ ・ ・ ・ ・</div>
     <div id="finger-labels">親 人 中 薬 小</div>
 </div>
 
@@ -137,13 +123,6 @@
 <button id="reset-btn">設定に戻る</button>
 
 <script>
-    // LINE検知
-    const ua = navigator.userAgent.toLowerCase();
-    if (ua.indexOf("line") > -1) {
-        document.getElementById('line-warning').style.display = 'flex';
-        document.getElementById('settings-overlay').style.display = 'none';
-    }
-
     // 変数
     let targetCount = 10;
     let currentCount = 0;
@@ -151,8 +130,8 @@
     let stepState = 0; 
     let isCelebrated = false;
     
-    // 指折り履歴 [親, 人, 中, 薬, 小]
-    let fingerHistory = [false, false, false, false, false];
+    // 指折りモード用の履歴 [親, 人, 中, 薬, 小]
+    let fingerLatch = [false, false, false, false, false];
 
     // 音声合成
     const synth = window.speechSynthesis;
@@ -172,9 +151,10 @@
     const currentCountDisplay = document.getElementById('current-count');
     const targetCountDisplay = document.getElementById('target-count-display');
     const statusText = document.getElementById('status-text');
-    const fingerHistoryDisplay = document.getElementById('finger-history');
+    const fingerVisualizer = document.getElementById('finger-visualizer');
     const celebrationMsg = document.getElementById('celebration-msg');
 
+    // 設定画面ロジック
     modeBtns.forEach(btn => {
         btn.onclick = () => {
             modeBtns.forEach(b => b.classList.remove('active'));
@@ -201,21 +181,19 @@
         currentCount = 0;
         stepState = 0;
         isCelebrated = false;
-        fingerHistory = [false, false, false, false, false];
-        updateHistoryDisplay();
+        fingerLatch = [false, false, false, false, false];
+        updateVisualizer([false,false,false,false,false]);
         
         celebrationMsg.style.display = 'none';
         currentCountDisplay.innerText = 0;
         targetCountDisplay.innerText = targetCount;
-        
-        // ★ここで表示を強制更新
         statusText.innerText = "手を映してね";
         
         startCamera();
         
         let modeName = "";
         if(mode === 'GRASP') modeName = "握って、離す運動。";
-        if(mode === 'FINGER') modeName = "指折り。好きな順で指を開いてください。";
+        if(mode === 'FINGER') modeName = "指折り。すべての指を一度開いてください。";
         if(mode === 'JANKEN') modeName = "ジャンケン。グー、チョキ、パーの順です。";
         speak(modeName + "スタート！", true);
     };
@@ -250,32 +228,43 @@
                 return;
             }
 
-            // 指の状態判定
-            const extended = getExtendedFingersArray(landmarks);
+            // 指の状態判定（高感度版）
+            const extended = getExtendedFingersV6(landmarks);
 
-            if (mode === 'GRASP') processGrasp(landmarks, extended);
-            else if (mode === 'FINGER') processFingerAccumulate(extended);
-            else if (mode === 'JANKEN') processJanken(landmarks, extended);
+            // モード別処理
+            if (mode === 'FINGER') {
+                // 指折りモード：履歴を蓄積して表示
+                processFingerAccumulate(extended);
+            } else {
+                // 握る・ジャンケン：リアルタイムの状態を表示
+                updateVisualizer(extended); 
+                
+                if (mode === 'GRASP') processGrasp(extended);
+                else if (mode === 'JANKEN') processJanken(extended);
+            }
         } 
-        // 手が見つからない場合
-        else if (!isCelebrated) {
-             // ここで「待機中」に戻らないようにする（前回のメッセージを維持）
-             // もしずっと認識できないならヒントを出す処理を入れてもいい
-        }
         canvasCtx.restore();
+    }
+
+    // --- UI更新 ---
+    function updateVisualizer(extended) {
+        // 配列を受け取って 〇 / ・ を表示
+        const marks = extended.map(isOn => isOn ? "〇" : "・").join(" ");
+        fingerVisualizer.innerText = marks;
     }
 
     // --- 判定ロジック ---
 
-    // ★指折り（蓄積型・〇表示）
+    // 1. 指折り（蓄積型）
     function processFingerAccumulate(extended) {
-        // リセット待ち (5本達成後)
+        // リセット待ち (5本達成後、グーに戻るまで)
         if (stepState === 99) {
             const count = extended.filter(Boolean).length;
+            updateVisualizer(fingerLatch); // 達成時の状態(全部〇)を維持
             if (count <= 1) { // グーに戻った
                 stepState = 0;
-                fingerHistory = [false, false, false, false, false];
-                updateHistoryDisplay();
+                fingerLatch = [false, false, false, false, false];
+                updateVisualizer(fingerLatch);
                 statusText.innerText = "好きな指から";
                 speak("次へ");
             }
@@ -283,23 +272,24 @@
         }
 
         // 計測中
-        let newDetection = false;
+        let changed = false;
         for(let i=0; i<5; i++) {
-            if (extended[i] && !fingerHistory[i]) {
-                fingerHistory[i] = true;
-                newDetection = true;
+            if (extended[i] && !fingerLatch[i]) {
+                fingerLatch[i] = true;
+                changed = true;
             }
         }
+        
+        // 常に現在の蓄積状況を表示
+        updateVisualizer(fingerLatch);
 
-        if (newDetection) updateHistoryDisplay();
-
-        const doneCount = fingerHistory.filter(Boolean).length;
-
+        const doneCount = fingerLatch.filter(Boolean).length;
         if (doneCount === 0) {
              statusText.innerText = "指を広げて";
         } else if (doneCount < 5) {
              statusText.innerText = "あと " + (5 - doneCount) + " 本";
         } else {
+            // 5本完了
             incrementCount();
             stepState = 99; 
             statusText.innerText = "グーに戻して";
@@ -307,14 +297,8 @@
         }
     }
 
-    function updateHistoryDisplay() {
-        // ★チェックマークを「〇」に変更
-        const marks = fingerHistory.map(done => done ? "〇" : "・").join(" ");
-        fingerHistoryDisplay.innerText = marks;
-    }
-
-    // 握る（変更なし）
-    function processGrasp(landmarks, extended) {
+    // 2. 握る（リアルタイム）
+    function processGrasp(extended) {
         const count = extended.filter(Boolean).length;
         if (count <= 1) {
             if (stepState === 0) { stepState = 1; statusText.innerText = "開いて！"; }
@@ -323,8 +307,8 @@
         }
     }
 
-    // ジャンケン（変更なし）
-    function processJanken(landmarks, extended) {
+    // 3. ジャンケン（リアルタイム）
+    function processJanken(extended) {
         const count = extended.filter(Boolean).length;
         let shape = 'UNKNOWN';
         if (count <= 1) shape = 'ROCK';
@@ -349,21 +333,54 @@
         else speak(currentCount + "セット完了");
     }
 
-    function getExtendedFingersArray(landmarks) {
+    // ★重要：指の状態判定 V6 (距離ベース・高感度)
+    function getExtendedFingersV6(landmarks) {
         const extended = [false, false, false, false, false];
-        const p4 = landmarks[4]; const p17 = landmarks[17]; const p5 = landmarks[5];
+        const wrist = landmarks[0];
         
-        // 親指判定（甘め）
-        const distThumbToPinky = Math.hypot(p4.x - p17.x, p4.y - p17.y);
-        const distIndexToPinky = Math.hypot(p5.x - p17.x, p5.y - p17.y);
-        extended[0] = distThumbToPinky > (distIndexToPinky * 1.1);
+        // 指先と付け根(PIP/MCP)のインデックス
+        // 0:親, 1:人, 2:中, 3:薬, 4:小
+        // 親指は Tip(4) vs IP(3) ではなく、Tip(4) vs IndexMCP(5) の距離などを複合的に見るのが一番安定する
+        // しかし今回はシンプルかつ強力な「手首からの距離」を採用します。
+        
+        // 親指 (Thumb): Tip(4) vs MCP(2)
+        // 人差 (Index): Tip(8) vs PIP(6)
+        // ...
+        const fingerTips = [4, 8, 12, 16, 20];
+        const fingerPips = [2, 6, 10, 14, 18]; // 親指はMCP(2), 他はPIP
 
-        const fingerTips = [null, 8, 12, 16, 20];
-        const fingerPips = [null, 6, 10, 14, 18];
-        for (let i = 1; i <= 4; i++) {
-            // Y座標で判定 (上が0なので、指先 < 関節 なら伸びている)
-            // ※手を横にすると誤判定しやすいので注意が必要ですが、V4/V5と同じロジックです
-            extended[i] = landmarks[fingerTips[i]].y < landmarks[fingerPips[i]].y;
+        for (let i = 0; i < 5; i++) {
+            const tip = landmarks[fingerTips[i]];
+            const pip = landmarks[fingerPips[i]];
+
+            // 手首(0)からの距離を計算
+            const distTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+            const distPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
+
+            if (i === 0) {
+                // 【親指の特例判定】
+                // 親指は「手首からの距離」だけだと、畳んだときも距離が長い場合がある。
+                // なので「小指の付け根(17)」からの距離も加味する。
+                const pinkyBase = landmarks[17];
+                const thumbTipToPinky = Math.hypot(tip.x - pinkyBase.x, tip.y - pinkyBase.y);
+                const indexBaseToPinky = Math.hypot(landmarks[5].x - pinkyBase.x, landmarks[5].y - pinkyBase.y);
+                
+                // 条件A: 手首から遠い
+                // 条件B: 小指の付け根から、人差し指の付け根以上に遠い (開いている)
+                const condA = distTip > distPip * 1.05; // 少し緩め
+                const condB = thumbTipToPinky > indexBaseToPinky * 0.9; // かなり緩め
+
+                extended[0] = condA && condB;
+
+            } else {
+                // 【他の4本】
+                // 指先が、関節よりも手首から遠ければ「伸びている」とみなす
+                // 倍率 1.0 だと厳密すぎるので、0.9くらいにして「ちょっと曲がっててもOK」にする
+                extended[i] = distTip > (distPip * 1.1); // 少し厳しめにして誤検知防ぐ? いや、感度よくするなら値を下げる
+                // 感度が悪い＝伸びてると判定されない。値を下げれば判定されやすくなる。
+                // 今回は 1.0 にしてみる（PIPより遠ければ即OK）
+                 extended[i] = distTip > distPip;
+            }
         }
         return extended;
     }
