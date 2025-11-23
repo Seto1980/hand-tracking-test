@@ -80,6 +80,7 @@
         background: #333; padding: 10px 20px; border-radius: 10px;
         min-width: 150px; text-align: center; border: 2px solid #555;
     }
+    /* 状態カラー */
     #status-message.ready { color: #aaa; border-color: #aaa; }
     #status-message.action { color: #ff9800; border-color: #ff9800; } 
     #status-message.ok { color: #4caf50; border-color: #4caf50; background: rgba(76, 175, 80, 0.2); }
@@ -113,7 +114,7 @@
 <body>
 
 <div id="settings-overlay">
-    <h1 style="margin-bottom:15px;">手指リハ設定 V16.1</h1>
+    <h1 style="margin-bottom:15px;">手指リハ設定 V17</h1>
     
     <div class="setting-group">
         <div class="setting-title">1. 動きのパターン</div>
@@ -135,14 +136,14 @@
     </div>
 
     <div class="setting-group">
-        <div class="setting-title">3. 感度 (伸展・屈曲)</div>
+        <div class="setting-title">3. 感度 (曲げ判定)</div>
         <div class="btn-group" id="sensitivity-group">
             <div class="select-btn btn-sense-low" data-sense="LOW">弱<br>厳格</div>
             <div class="select-btn btn-sense-mid active" data-sense="MEDIUM">中<br>標準</div>
             <div class="select-btn btn-sense-high" data-sense="HIGH">強<br>反応良</div>
         </div>
         <div style="font-size:0.8rem; color:#888; text-align:center; margin-top:5px;">
-            強：少しの伸び・曲がりで反応します<br>(拘縮がある方向け)
+            強：少しの曲がりでも反応<br>中：90度くらい<br>弱：完全に握り込み
         </div>
     </div>
 
@@ -208,6 +209,7 @@
         synth.speak(ut);
     }
 
+    // UI Elements & Listeners (省略せず記述)
     const settingsOverlay = document.getElementById('settings-overlay');
     const modeBtns = document.querySelectorAll('#mode-group .select-btn');
     const countBtns = document.querySelectorAll('#count-group .select-btn');
@@ -287,6 +289,7 @@
         statusMessage.classList.add(type);
     }
 
+    // MediaPipe
     const videoElement = document.getElementById('inputVideo');
     const canvasElement = document.getElementById('outputCanvas');
     const canvasCtx = canvasElement.getContext('2d');
@@ -295,7 +298,7 @@
     hands.onResults(onResults);
 
     function onResults(results) {
-        // ★安全装置: エラーで画面が黒くなるのを防ぐ
+        // 安全装置
         try {
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -308,6 +311,7 @@
                 lostFrames = 0; 
                 const landmarks = results.multiHandLandmarks[0];
                 
+                // 座標による左右判定 (シンプル・イズ・ベスト)
                 const thumbX = landmarks[4].x;
                 const pinkyX = landmarks[20].x;
                 isThumbLeft = thumbX < pinkyX; 
@@ -333,12 +337,14 @@
                 }
                 if (isCelebrated) { canvasCtx.restore(); return; }
 
-                const bentStatus = getBentStatusV16(landmarks, sensitivity);
-                const extendedStatus = getExtendedStatusV16(landmarks, sensitivity);
+                // ★V17 シンプル判定ロジック
+                const bentStatus = getBentStatusV17(landmarks, sensitivity);
                 
                 if (mode === 'FINGER') {
                     processFingerMode(bentStatus);
                 } else {
+                    // 握り・ジャンケン用: 曲がっていない＝伸びている
+                    const extendedStatus = bentStatus.map(b => !b);
                     updateVisualizer(extendedStatus);
                     if (mode === 'GRASP') processGrasp(extendedStatus);
                     else if (mode === 'JANKEN') processJanken(extendedStatus);
@@ -349,8 +355,8 @@
             }
             canvasCtx.restore();
         } catch (e) {
-            console.error("Drawing error:", e);
-            canvasCtx.restore(); // エラーでも復帰させる
+            console.error("Error:", e);
+            canvasCtx.restore();
         }
     }
 
@@ -361,6 +367,7 @@
         fingerVisualizer.innerText = marks;
     }
 
+    // 角度計算 (3点)
     function getAngle(A, B, C) {
         const v1 = {x: A.x - B.x, y: A.y - B.y, z: A.z - B.z};
         const v2 = {x: C.x - B.x, y: C.y - B.y, z: C.z - B.z};
@@ -371,63 +378,40 @@
         return isNaN(angle) ? 0 : angle;
     }
 
-    // 1. 曲げ判定
-    function getBentStatusV16(landmarks, sensitivity) {
+    // ★V17: 原点回帰シンプル判定
+    function getBentStatusV17(landmarks, sensitivity) {
         const bent = [false, false, false, false, false];
-        const wrist = landmarks[0];
         
-        let bendAngleThresh = 140;
-        if (sensitivity === 'HIGH') bendAngleThresh = 165; 
-        if (sensitivity === 'LOW') bendAngleThresh = 100; 
+        // 閾値設定 (HIGH=甘い, MID=普通, LOW=厳しい)
+        let angleThresh = 150; // 標準
+        
+        if (sensitivity === 'HIGH') angleThresh = 170; // ほぼ真っ直ぐ(180)以外は曲げとみなす
+        if (sensitivity === 'LOW') angleThresh = 90; // 直角より深く曲げないとダメ
 
-        const angleThumb = getAngle(landmarks[2], landmarks[3], landmarks[4]);
-        bent[0] = angleThumb < bendAngleThresh;
+        // 親指: IP関節(3)の角度
+        // 親指は構造上、他の指より角度が出にくいので少し甘めに
+        const thumbAngle = getAngle(landmarks[2], landmarks[3], landmarks[4]);
+        let thumbThresh = angleThresh + 10; 
+        if(thumbThresh > 175) thumbThresh = 175;
+        bent[0] = thumbAngle < thumbThresh;
 
-        const fingerTips = [null, 8, 12, 16, 20];
-        const fingerMcp = [null, 5, 9, 13, 17];
-        for (let i = 1; i <= 4; i++) {
-            const pipIdx = i*4 + 2;
-            const angle = getAngle(landmarks[pipIdx-1], landmarks[pipIdx], landmarks[pipIdx+1]);
-            
-            const distTipMcp = Math.hypot(landmarks[fingerTips[i]].x - landmarks[fingerMcp[i]].x, landmarks[fingerTips[i]].y - landmarks[fingerMcp[i]].y);
-            const distMcpWrist = Math.hypot(landmarks[fingerMcp[i]].x - wrist.x, landmarks[fingerMcp[i]].y - wrist.y);
-            
-            let ratio = (sensitivity === 'HIGH') ? 1.2 : (sensitivity === 'LOW' ? 0.8 : 1.0);
-            
-            bent[i] = (angle < bendAngleThresh) || (distTipMcp < distMcpWrist * ratio);
+        // 他指: PIP関節(6,10,14,18)の角度
+        const fingerJoints = [
+            [5, 6, 7],   // Index
+            [9, 10, 11], // Middle
+            [13, 14, 15],// Ring
+            [17, 18, 19] // Pinky
+        ];
+
+        for (let i = 0; i < 4; i++) {
+            const [a, b, c] = fingerJoints[i];
+            const angle = getAngle(landmarks[a], landmarks[b], landmarks[c]);
+            bent[i+1] = angle < angleThresh;
         }
         return bent;
     }
 
-    // 2. 伸び判定
-    function getExtendedStatusV16(landmarks, sensitivity) {
-        const extended = [false, false, false, false, false];
-        const wrist = landmarks[0];
-
-        // 伸ばし判定の閾値を大幅緩和 (特にHIGH)
-        let extendAngleThresh = 150; 
-        if (sensitivity === 'HIGH') extendAngleThresh = 130; // 130度あればOK
-        if (sensitivity === 'LOW') extendAngleThresh = 165;
-
-        const angleThumb = getAngle(landmarks[2], landmarks[3], landmarks[4]);
-        extended[0] = angleThumb > extendAngleThresh;
-
-        const fingerTips = [null, 8, 12, 16, 20];
-        const fingerMcp = [null, 5, 9, 13, 17];
-        for (let i = 1; i <= 4; i++) {
-            const pipIdx = i*4 + 2;
-            const angle = getAngle(landmarks[pipIdx-1], landmarks[pipIdx], landmarks[pipIdx+1]);
-            
-            const distTipWrist = Math.hypot(landmarks[fingerTips[i]].x - wrist.x, landmarks[fingerTips[i]].y - wrist.y);
-            const distMcpWrist = Math.hypot(landmarks[fingerMcp[i]].x - wrist.x, landmarks[fingerMcp[i]].y - wrist.y);
-            
-            // 伸び比率も緩和
-            let ratio = (sensitivity === 'HIGH') ? 1.3 : 1.8; 
-
-            extended[i] = (angle > extendAngleThresh) || (distTipWrist > distMcpWrist * ratio);
-        }
-        return extended;
-    }
+    // --- アプリ挙動 ---
 
     function processFingerMode(bentStatus) {
         const beforeCount = fingerLatch.filter(Boolean).length;
@@ -435,6 +419,7 @@
         if (stepState === 99) {
             updateVisualizer(fingerLatch);
             const currentBentCount = bentStatus.filter(Boolean).length;
+            // リセット条件：HIGHなら1本許容、他は0本
             let resetThreshold = (sensitivity === 'HIGH') ? 1 : 0;
 
             if (currentBentCount <= resetThreshold) { 
@@ -451,6 +436,7 @@
         }
 
         const currentBentCount = bentStatus.filter(Boolean).length;
+        // いきなり5本防止
         if (prevBentCount < 2 && currentBentCount === 5) { /* skip */ }
         else {
             for(let i=0; i<5; i++) {
@@ -477,6 +463,7 @@
 
     function processGrasp(extended) {
         const count = extended.filter(Boolean).length;
+        // HIGHなら3本開けばOK、LOWなら5本
         let openThresh = (sensitivity === 'HIGH') ? 3 : 4;
         let closeThresh = (sensitivity === 'HIGH') ? 1 : 0;
 
@@ -495,16 +482,15 @@
 
     function processJanken(extended) {
         const count = extended.filter(Boolean).length;
-        const isRock = count <= 1;
-        const isPaper = count >= 4;
+        // チョキ判定: 人・中が伸び、薬・小が曲がり
         const isChoki = extended[1] && extended[2] && !extended[3] && !extended[4];
-
+        
         let shape = 'UNKNOWN';
-        if (isRock) shape = 'ROCK';
-        else if (isPaper) shape = 'PAPER';
+        if (count <= 1) shape = 'ROCK';
+        else if (count >= 4) shape = 'PAPER'; // HIGHなら3でもいいかもだが誤爆防止で4
         else if (isChoki) shape = 'SCISSORS';
 
-        if (state === "WAITING" && shape === 'ROCK') {
+        if (stepState === 0 && shape === 'ROCK') {
             speak("グー", true); 
             state = "GU_DONE"; 
             setStatus("次はチョキ", "action");
@@ -526,26 +512,6 @@
             state = "GU_DONE";
             setStatus("次はチョキ", "action");
         }
-    }
-
-    async function startCamera() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: 1280, height: 720 } 
-            });
-            videoElement.srcObject = stream;
-            videoElement.play();
-            videoElement.onloadedmetadata = () => {
-                canvasElement.width = videoElement.videoWidth;
-                canvasElement.height = videoElement.videoHeight;
-                processVideo();
-            };
-        } catch (err) { alert("カメラエラー: " + err.name); }
-    }
-
-    async function processVideo() {
-        await hands.send({image: videoElement});
-        requestAnimationFrame(processVideo);
     }
 </script>
 </body>
