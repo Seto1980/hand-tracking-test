@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>ストア用画像作成 (修正版)</title>
+<title>ストア用画像作成 (中央配置・完成版)</title>
 <style>
     body { background: #222; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; font-family: sans-serif; }
     canvas { border: 2px solid #fff; margin: 20px; max-width: 90%; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
@@ -22,48 +22,55 @@
 <script>
     const canvas = document.getElementById('myCanvas');
     const ctx = canvas.getContext('2d');
+    const canvasWidth = 1024;
+    const canvasHeight = 500;
 
     // 1. 背景：清潔感のある緑のグラデーション
-    const gradient = ctx.createLinearGradient(0, 0, 1024, 500);
+    const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
     gradient.addColorStop(0, '#11998e');  // 左上
     gradient.addColorStop(1, '#38ef7d');  // 右下
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1024, 500);
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // 2. アイコンの配置（左側に寄せる）
     const img = new Image();
     img.src = 'icon.png'; // GitHubのアイコンを読み込む
     
     img.onload = () => {
-        // アイコンサイズを少し小さくして左に配置
-        const iconSize = 300;
-        const iconX = 80; // 左端からの距離
-        const iconY = (500 - iconSize) / 2; // 上下中央
-
-        // 影
+        // --- サイズと間隔の設定（バランス調整）---
+        const iconSize = 280; // アイコンを少し小さくして上品に
+        const padding = 50;   // アイコンと文字の間隔を広げて見やすく
+        ctx.font = "bold 90px sans-serif"; // 文字を大きくして視認性アップ
+        
+        // --- 配置計算 ---
+        const text1 = "AIリハビリ";
+        const text2 = "カウンター";
+        // 文字列の幅を計算（長い方に合わせる）
+        const textWidth = Math.max(ctx.measureText(text1).width, ctx.measureText(text2).width);
+        
+        // 全体のコンテンツ幅を計算し、中央の開始位置を割り出す
+        const contentWidth = iconSize + padding + textWidth;
+        const startX = (canvasWidth - contentWidth) / 2;
+        const iconY = (canvasHeight - iconSize) / 2;
+        
+        // --- 共通の影設定 ---
         ctx.shadowColor = "rgba(0,0,0,0.3)";
-        ctx.shadowBlur = 20;
-        ctx.shadowOffsetX = 5;
-        ctx.shadowOffsetY = 5;
+        ctx.shadowBlur = 25;
+        ctx.shadowOffsetX = 8;
+        ctx.shadowOffsetY = 8;
 
-        ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
+        // 2. アイコンの描画
+        ctx.drawImage(img, startX, iconY, iconSize, iconSize);
         
-        // 3. テキストの配置（右側の空きスペースに）
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
+        // 3. テキストの描画
         ctx.fillStyle = "white";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle"; // 垂直方向の中央揃え
         
-        // アプリ名：2行に分けてバランス良く配置
-        ctx.textAlign = "left"; 
-        
-        // 1行目「AIリハビリ」
-        ctx.font = "bold 60px sans-serif";
-        ctx.fillText("AIリハビリ", 420, 230);
-
-        // 2行目「カウンター」
-        ctx.font = "bold 80px sans-serif";
-        ctx.fillText("カウンター", 420, 330);
+        const textX = startX + iconSize + padding;
+        const textCenterY = canvasHeight / 2;
+        // 2行のテキストを中央寄せで配置（バランスよく上下に配置）
+        ctx.fillText(text1, textX, textCenterY - 55);
+        ctx.fillText(text2, textX, textCenterY + 55);
     };
 
     function downloadImage() {
