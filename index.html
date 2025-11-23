@@ -17,7 +17,6 @@
     body { 
         background-color: #1e1e1e; color: #fff; margin: 0; overflow: hidden; font-family: sans-serif; 
         display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;
-        /* スマホでの選択防止 */
         user-select: none; -webkit-user-select: none;
     }
 
@@ -65,9 +64,6 @@
     #finger-labels {
         font-size: 0.8rem; color: #fff; margin-top: 2px; letter-spacing: 8px; font-weight: bold;
     }
-    #hand-side-label {
-        position: absolute; top: 5px; right: 10px; font-size: 0.8rem; color: #00bcd4; font-weight: bold;
-    }
 
     #celebration-msg {
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -111,7 +107,6 @@
 <div id="celebration-msg">スゴイですね！<br>目標達成！</div>
 
 <div id="info-panel">
-    <div id="hand-side-label">Detecting...</div>
     <div class="info-row">
         <div class="info-item">
             <div class="info-label">現在</div>
@@ -181,7 +176,6 @@
     const fingerVisualizer = document.getElementById('finger-visualizer');
     const fingerLabels = document.getElementById('finger-labels');
     const celebrationMsg = document.getElementById('celebration-msg');
-    const handSideLabel = document.getElementById('hand-side-label');
 
     modeBtns.forEach(btn => {
         btn.onclick = () => {
@@ -242,13 +236,13 @@
             lostFrames = 0; 
             const landmarks = results.multiHandLandmarks[0];
             
+            // 画面上の並び順判定 (親指X < 小指X なら標準、逆なら反転)
             const thumbX = landmarks[4].x;
             const pinkyX = landmarks[20].x;
             isVisualOrderNormal = thumbX < pinkyX;
             fingerLabels.innerText = isVisualOrderNormal ? "親 人 中 薬 小" : "小 薬 中 人 親";
             
-            const handedness = results.multiHandedness[0].label;
-            handSideLabel.innerText = handedness === 'Left' ? 'Left Hand' : 'Right Hand';
+            // ★「Left Hand/Right Hand」の青い表示ロジックは削除しました
 
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
             drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
@@ -263,6 +257,7 @@
             }
             if (isCelebrated) { canvasCtx.restore(); return; }
 
+            // 安定版ロジック V10ベース
             const bentStatus = getBentStatusV10(landmarks); 
             
             if (mode === 'FINGER') {
@@ -275,7 +270,7 @@
             }
         } else {
             lostFrames++;
-            if (lostFrames >= LOST_THRESHOLD) handSideLabel.innerText = "Searching...";
+            if (lostFrames >= LOST_THRESHOLD) statusText.innerText = "検索中...";
         }
         canvasCtx.restore();
     }
@@ -375,6 +370,7 @@
         return Math.acos(Math.min(Math.max(dot / (mag1 * mag2), -1), 1)) * (180 / Math.PI);
     }
 
+    // V10ベースの安定判定ロジック
     function getBentStatusV10(landmarks) {
         const bent = [false, false, false, false, false];
         const wrist = landmarks[0];
