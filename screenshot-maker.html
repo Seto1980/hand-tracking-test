@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>スクショ作成ツール</title>
+<style>
+    body { background: #333; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; font-family: sans-serif; }
+    canvas { border: 2px solid #fff; margin: 10px; width: 270px; height: 480px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+    .btn-group { display: flex; gap: 10px; margin-bottom: 20px; }
+    button { padding: 10px 20px; font-size: 1rem; background: #4caf50; color: white; border: none; cursor: pointer; border-radius: 5px; }
+    button:hover { background: #45a049; }
+</style>
+</head>
+<body>
+
+<h2>Google Play用 スクリーンショット作成 (1080x1920)</h2>
+<p>ボタンを押すと、各画面の画像を生成してダウンロードします。</p>
+
+<div class="btn-group">
+    <button onclick="drawMenu()">1. 設定画面</button>
+    <button onclick="drawMain()">2. プレイ画面</button>
+    <button onclick="drawSuccess()">3. 達成画面</button>
+</div>
+
+<canvas id="myCanvas" width="1080" height="1920"></canvas>
+
+<script>
+    const canvas = document.getElementById('myCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 共通背景（黒）
+    function clearCanvas() {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, 1080, 1920);
+    }
+
+    // 1. 設定画面
+    function drawMenu() {
+        clearCanvas();
+        
+        // 背景（半透明黒）
+        ctx.fillStyle = "rgba(30, 30, 30, 1)";
+        ctx.fillRect(0, 0, 1080, 1920);
+
+        // タイトル
+        ctx.fillStyle = "white";
+        ctx.font = "bold 80px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("手指リハ設定 Ver1.0", 540, 300);
+
+        // ボタン風の描画
+        drawButton(140, 500, "1. 動きのパターン", ["握る", "指折り", "ジャンケン"]);
+        drawButton(140, 1000, "2. 目標回数", ["10回", "50回", "100回"]);
+        
+        // スタートボタン
+        ctx.fillStyle = "#28a745";
+        ctx.beginPath();
+        ctx.roundRect(200, 1500, 680, 120, 60);
+        ctx.fill();
+        ctx.fillStyle = "white";
+        ctx.font = "bold 60px sans-serif";
+        ctx.fillText("スタート", 540, 1585);
+
+        downloadImage("screenshot_1_menu.png");
+    }
+
+    // 2. プレイ画面（AI骨格風）
+    function drawMain() {
+        clearCanvas();
+
+        // UIヘッダー
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(0, 0, 1080, 300);
+        
+        // 文字情報
+        ctx.fillStyle = "#ccc";
+        ctx.font = "40px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("現在", 200, 100);
+        ctx.fillText("目標", 880, 100);
+        
+        ctx.fillStyle = "white";
+        ctx.font = "bold 100px sans-serif";
+        ctx.fillText("3", 200, 220);
+        ctx.fillText("10", 880, 220);
+        
+        ctx.fillStyle = "#4caf50";
+        ctx.fillText("握って！", 540, 180);
+
+        // 疑似的な手の骨格を描画 (AIっぽさの演出)
+        ctx.lineWidth = 15;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "#00FF00"; // 緑の線
+        ctx.fillStyle = "#FF0000";   // 赤い点
+
+        // 手首
+        const wrist = {x: 540, y: 1600};
+        // 指の座標（パーの状態）
+        const fingers = [
+            [{x:300, y:1100}, {x:350, y:1000}, {x:380, y:900}], // 親
+            [{x:450, y:900}, {x:460, y:750}, {x:470, y:600}],   // 人
+            [{x:540, y:850}, {x:540, y:700}, {x:540, y:550}],   // 中
+            [{x:630, y:900}, {x:640, y:750}, {x:650, y:600}],   // 薬
+            [{x:750, y:1000}, {x:780, y:900}, {x:800, y:800}]   // 小
+        ];
+
+        // 描画ループ
+        fingers.forEach(finger => {
+            ctx.beginPath();
+            ctx.moveTo(wrist.x, wrist.y);
+            let currentX = wrist.x;
+            let currentY = wrist.y;
+            
+            finger.forEach(joint => {
+                ctx.lineTo(joint.x, joint.y);
+                currentX = joint.x;
+                currentY = joint.y;
+            });
+            ctx.stroke();
+            
+            // 関節の点を描く
+            finger.forEach(joint => {
+                ctx.beginPath();
+                ctx.arc(joint.x, joint.y, 15, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        });
+        
+        // 手首の点
+        ctx.beginPath();
+        ctx.arc(wrist.x, wrist.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 下部のインジケーター
+        ctx.fillStyle = "#00FF00";
+        ctx.font = "bold 80px monospace";
+        ctx.fillText("〇 〇 〇 〇 〇", 540, 1800);
+        ctx.fillStyle = "#aaa";
+        ctx.font = "40px sans-serif";
+        ctx.fillText("親  人  中  薬  小", 540, 1870);
+
+        downloadImage("screenshot_2_play.png");
+    }
+
+    // 3. 達成画面
+    function drawSuccess() {
+        drawMain(); // ベースはプレイ画面
+
+        // オーバーレイ
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0, 0, 1080, 1920);
+
+        // メッセージ
+        ctx.shadowColor = "red";
+        ctx.shadowBlur = 50;
+        ctx.fillStyle = "gold";
+        ctx.font = "bold 120px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("スゴイですね！", 540, 900);
+        ctx.fillText("目標達成！", 540, 1100);
+
+        downloadImage("screenshot_3_success.png");
+    }
+
+    // ヘルパー：設定画面のパーツ描画
+    function drawButton(x, y, title, labels) {
+        ctx.shadowColor = "transparent";
+        ctx.fillStyle = "#aaa";
+        ctx.font = "40px sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(title, x, y);
+
+        let btnX = x;
+        labels.forEach((label, index) => {
+            ctx.fillStyle = (index === 0) ? "#007bff" : "#333"; // 1個目だけアクティブ風
+            ctx.beginPath();
+            ctx.roundRect(btnX, y + 30, 250, 100, 20);
+            ctx.fill();
+            
+            ctx.fillStyle = "white";
+            ctx.font = "bold 40px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(label, btnX + 125, y + 95);
+            btnX += 270;
+        });
+    }
+
+    function downloadImage(filename) {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+</script>
+
+</body>
+</html>
