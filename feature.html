@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ストア用画像作成</title>
+<style>
+    body { background: #222; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; font-family: sans-serif; }
+    canvas { border: 2px solid #fff; margin: 20px; max-width: 90%; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+    button { padding: 15px 40px; font-size: 1.2rem; background: #4caf50; color: white; border: none; cursor: pointer; border-radius: 30px; font-weight: bold; }
+    button:hover { background: #45a049; }
+</style>
+</head>
+<body>
+
+<h2>Google Play用 フィーチャーグラフィック (1024x500)</h2>
+<p>下のボタンを押すと、画像を生成してダウンロードします。</p>
+
+<canvas id="myCanvas" width="1024" height="500"></canvas>
+<br>
+<button onclick="downloadImage()">画像をダウンロード</button>
+
+<script>
+    const canvas = document.getElementById('myCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 1. 背景：清潔感のある緑のグラデーション
+    const gradient = ctx.createLinearGradient(0, 0, 1024, 500);
+    gradient.addColorStop(0, '#11998e');  // 左上：濃い緑
+    gradient.addColorStop(1, '#38ef7d');  // 右下：明るい緑
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1024, 500);
+
+    // 2. テキスト：アプリ名
+    ctx.shadowColor = "rgba(0,0,0,0.3)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    
+    ctx.fillStyle = "white";
+    ctx.font = "bold 60px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("AIリハビリカウンター", 1024/2 + 150, 500/2); // 右寄りに配置
+
+    // 3. アイコンを左側に配置
+    const img = new Image();
+    img.src = 'icon.png'; // GitHubのアイコンを読み込む
+    img.onload = () => {
+        const size = 350; // アイコンの大きさ
+        // 左側に配置
+        ctx.drawImage(img, 100, (500-size)/2, size, size);
+    };
+
+    function downloadImage() {
+        const link = document.createElement('a');
+        link.download = 'feature_graphic.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+</script>
+
+</body>
+</html>
