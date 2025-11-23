@@ -26,7 +26,7 @@
         background: rgba(30, 30, 30, 0.98); z-index: 100;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         padding: 20px; box-sizing: border-box;
-        overflow-y: auto; /* 縦スクロール対応 */
+        overflow-y: auto; 
     }
     .setting-group { margin-bottom: 20px; width: 100%; max-width: 400px; }
     .setting-title { font-size: 1.1rem; color: #aaa; margin-bottom: 8px; text-align: center; }
@@ -37,9 +37,9 @@
     }
     .select-btn.active { background: #007bff; border-color: #007bff; }
     /* 感度ボタンの色分け */
-    .btn-sense-low.active { background: #28a745; border-color: #28a745; } /* 緑 */
-    .btn-sense-mid.active { background: #007bff; border-color: #007bff; } /* 青 */
-    .btn-sense-high.active { background: #d93025; border-color: #d93025; } /* 赤 */
+    .btn-sense-low.active { background: #28a745; border-color: #28a745; } 
+    .btn-sense-mid.active { background: #007bff; border-color: #007bff; } 
+    .btn-sense-high.active { background: #d93025; border-color: #d93025; } 
 
     input[type="number"] { padding: 10px; border-radius: 10px; border: none; width: 80px; text-align: center; font-size: 1.2rem; }
     #start-app-btn {
@@ -94,7 +94,7 @@
 <body>
 
 <div id="settings-overlay">
-    <h1 style="margin-bottom:15px;">手指リハ設定 Ver11</h1>
+    <h1 style="margin-bottom:15px;">手指リハ設定 Ver12</h1>
     
     <div class="setting-group">
         <div class="setting-title">1. 動きのパターン</div>
@@ -123,7 +123,7 @@
             <div class="select-btn btn-sense-high" data-sense="HIGH">強<br>(反応良)</div>
         </div>
         <div style="font-size:0.8rem; color:#888; text-align:center; margin-top:5px;">
-            強：わずかな屈曲で反応します<br>弱：しっかり曲げないと反応しません
+            強：中間位や20%の屈曲でも反応<br>弱：しっかり握り込まないと反応しません
         </div>
     </div>
 
@@ -172,7 +172,7 @@
     let targetCount = 10;
     let currentCount = 0;
     let mode = 'GRASP'; 
-    let sensitivity = 'MEDIUM'; // LOW, MEDIUM, HIGH
+    let sensitivity = 'MEDIUM'; 
     let stepState = 0; 
     let isCelebrated = false;
     let fingerLatch = [false, false, false, false, false];
@@ -191,11 +191,11 @@
         synth.speak(ut);
     }
 
-    // UI要素
+    // UI
     const settingsOverlay = document.getElementById('settings-overlay');
     const modeBtns = document.querySelectorAll('#mode-group .select-btn');
     const countBtns = document.querySelectorAll('#count-group .select-btn');
-    const senseBtns = document.querySelectorAll('#sensitivity-group .select-btn'); // 感度ボタン
+    const senseBtns = document.querySelectorAll('#sensitivity-group .select-btn');
     const customCountInput = document.getElementById('custom-count');
     const currentCountDisplay = document.getElementById('current-count');
     const targetCountDisplay = document.getElementById('target-count-display');
@@ -206,7 +206,6 @@
     const handSideLabel = document.getElementById('hand-side-label');
     const sensitivityDisplay = document.getElementById('sensitivity-display');
 
-    // UIロジック: モード
     modeBtns.forEach(btn => {
         btn.onclick = () => {
             modeBtns.forEach(b => b.classList.remove('active'));
@@ -214,8 +213,6 @@
             mode = btn.dataset.mode;
         };
     });
-
-    // UIロジック: 回数
     countBtns.forEach(btn => {
         btn.onclick = () => {
             countBtns.forEach(b => b.classList.remove('active'));
@@ -228,8 +225,6 @@
         countBtns.forEach(b => b.classList.remove('active'));
         targetCount = parseInt(customCountInput.value) || 10;
     };
-
-    // UIロジック: 感度 (新規)
     senseBtns.forEach(btn => {
         btn.onclick = () => {
             senseBtns.forEach(b => b.classList.remove('active'));
@@ -238,7 +233,6 @@
         };
     });
 
-    // スタート
     document.getElementById('start-app-btn').onclick = () => {
         settingsOverlay.style.display = 'none';
         currentCount = 0;
@@ -252,7 +246,6 @@
         targetCountDisplay.innerText = targetCount;
         updateVisualizer([false,false,false,false,false]);
         
-        // 感度表示更新
         let senseText = "感度: 中";
         if (sensitivity === 'LOW') senseText = "感度: 弱";
         if (sensitivity === 'HIGH') senseText = "感度: 強";
@@ -305,8 +298,8 @@
             }
             if (isCelebrated) { canvasCtx.restore(); return; }
 
-            // ★感度設定を適用した判定ロジック
-            const bentStatus = getBentStatusV11(landmarks, sensitivity); 
+            // ★V12判定ロジック
+            const bentStatus = getBentStatusV12(landmarks, sensitivity); 
             
             if (mode === 'FINGER') {
                 processFingerMode(bentStatus);
@@ -330,19 +323,16 @@
         fingerVisualizer.innerText = marks;
     }
 
-    // --- 処理ロジック ---
+    // --- ロジック群 ---
 
     function processFingerMode(bentStatus) {
         const beforeCount = fingerLatch.filter(Boolean).length;
         
-        // リセット待ち
         if (stepState === 99) {
             updateVisualizer(fingerLatch);
             const currentBentCount = bentStatus.filter(Boolean).length;
-            // 強感度の場合、完全に伸びなくても「ある程度戻ればOK」とみなす
-            // 弱感度の場合、しっかり0本になるまで待つ
             let resetThreshold = 0;
-            if (sensitivity === 'HIGH') resetThreshold = 1; // 1本くらい曲がったままでもリセット許容
+            if (sensitivity === 'HIGH') resetThreshold = 1; 
 
             if (currentBentCount <= resetThreshold) { 
                 stepState = 0;
@@ -381,8 +371,6 @@
 
     function processGrasp(extended) {
         const count = extended.filter(Boolean).length;
-        // 感度によって「開いた/閉じた」の判定本数を変えるのも手だが、
-        // ここでは「指ごとの判定」が感度で変わっているので、本数条件は維持
         if (count <= 1) { 
             if (stepState === 0) { stepState = 1; statusText.innerText = "開いて！"; }
         } else if (count >= 4) { 
@@ -426,51 +414,65 @@
         return Math.acos(Math.min(Math.max(dot / (mag1 * mag2), -1), 1)) * (180 / Math.PI);
     }
 
-    // ★感度対応の判定ロジック V11
-    function getBentStatusV11(landmarks, sensitivity) {
+    // ★感度対応 V12 (中間位・回転対応強化版)
+    function getBentStatusV12(landmarks, sensitivity) {
         const bent = [false, false, false, false, false];
         const wrist = landmarks[0];
+        // スケール基準: 手首〜中指付け根
         const handSize = Math.hypot(wrist.x - landmarks[9].x, wrist.y - landmarks[9].y);
 
-        // 感度パラメータ設定
-        let threshAngle = 140; // 標準 (140度以下で曲がり)
-        let threshDistRatio = 1.2; // 標準 (距離が1.2倍以下なら曲がり)
-        
+        // --- パラメータ設定 ---
+        let threshAngle = 140; 
+        let threshDistRatio = 1.2; // (指先-手首) vs (付け根-手首)
+        let threshTipMcpRatio = 1.2; // (指先-付け根) vs (手のサイズ) ★新指標
+
         if (sensitivity === 'HIGH') {
-            // 強: わずかな曲がり(165度)でも反応。距離判定も甘く(1.4倍)。
-            threshAngle = 165; 
+            // 強: わずかな曲がりでも反応
+            threshAngle = 170; // ほぼ真っ直ぐ(180)でも、少し曲がればOK
             threshDistRatio = 1.4; 
+            threshTipMcpRatio = 1.3; // 指自体の長さチェックも甘く
         } else if (sensitivity === 'LOW') {
-            // 弱: 深く曲げないと反応しない(100度)。距離も厳しく(0.9倍)。
+            // 弱: 厳格
             threshAngle = 100;
             threshDistRatio = 0.9;
+            threshTipMcpRatio = 0.8;
         }
 
-        // 親指判定 (親指は角度 + 小指付け根への距離)
+        // 親指判定 (変化なし)
         const angleThumb = getAngle(landmarks[2], landmarks[3], landmarks[4]);
         const distThumbTipToPinkyBase = Math.hypot(landmarks[4].x - landmarks[17].x, landmarks[4].y - landmarks[17].y);
+        let thumbAngleThresh = (sensitivity === 'HIGH') ? 170 : 160;
+        if(sensitivity === 'LOW') thumbAngleThresh = 140;
+        let thumbDistThresh = (sensitivity === 'HIGH') ? 1.0 : 0.8;
         
-        // 親指用の閾値調整
-        let thumbAngleThresh = 160; 
-        let thumbDistThresh = 0.8;
-        if (sensitivity === 'HIGH') { thumbAngleThresh = 170; thumbDistThresh = 1.0; } // 甘く
-        if (sensitivity === 'LOW') { thumbAngleThresh = 140; thumbDistThresh = 0.6; } // 厳しく
-
         bent[0] = angleThumb < thumbAngleThresh || distThumbTipToPinkyBase < (handSize * thumbDistThresh);
 
-        // 他の4本判定
+        // 他の4本 (Index ~ Pinky)
         const fingerTips = [null, 8, 12, 16, 20];
         const fingerMcp = [null, 5, 9, 13, 17];
         
         for (let i = 1; i <= 4; i++) {
             const pipIdx = i*4 + 2;
             const angle = getAngle(landmarks[pipIdx-1], landmarks[pipIdx], landmarks[pipIdx+1]);
+            
+            // 指先-手首 の距離
             const distTipWrist = Math.hypot(landmarks[fingerTips[i]].x - wrist.x, landmarks[fingerTips[i]].y - wrist.y);
             const distMcpWrist = Math.hypot(landmarks[fingerMcp[i]].x - wrist.x, landmarks[fingerMcp[i]].y - wrist.y);
             
-            const isFoldedByDist = distTipWrist < (distMcpWrist * threshDistRatio);
+            // ★新判定: 指先-付け根(MCP) の距離 (これが指の「折りたたみ」を一番表す)
+            const distTipMcp = Math.hypot(landmarks[fingerTips[i]].x - landmarks[fingerMcp[i]].x, landmarks[fingerTips[i]].y - landmarks[fingerMcp[i]].y);
             
-            bent[i] = angle < threshAngle || isFoldedByDist;
+            // 判定条件 (OR条件なので、どれか一つでも満たせば「曲がった」とみなす)
+            // 1. 角度が閾値より小さい
+            const condAngle = angle < threshAngle;
+            // 2. 手首への距離が縮まっている (従来)
+            const condWristDist = distTipWrist < (distMcpWrist * threshDistRatio);
+            // 3. 指先と付け根が近づいている (中間位・回転対策)
+            // 通常、伸ばした指の長さは handSize * 0.9 ~ 1.2 くらい。曲げると小さくなる。
+            // HIGHなら、少しでも短くなれば(handSize * 1.3以下なら)OKにする
+            const condTipMcp = distTipMcp < (handSize * threshTipMcpRatio);
+
+            bent[i] = condAngle || condWristDist || condTipMcp;
         }
         return bent;
     }
