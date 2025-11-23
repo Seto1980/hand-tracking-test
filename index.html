@@ -20,11 +20,11 @@
         user-select: none; -webkit-user-select: none; touch-action: manipulation;
     }
 
-    /* --- 設定画面 (最強の前面固定) --- */
+    /* --- 設定画面 --- */
     #settings-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(30, 30, 30, 0.98); 
-        z-index: 10000; /* 確実に最前面 */
+        z-index: 10000; 
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         padding: 20px; box-sizing: border-box;
         overflow-y: auto; 
@@ -34,15 +34,10 @@
     .btn-group { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
     
     .select-btn {
-        padding: 12px 15px; /* タップしやすい大きさ */
-        border: 2px solid #555; background: #333; color: #fff;
-        border-radius: 20px; cursor: pointer; font-size: 1rem; flex: 1; text-align: center; min-width: 80px;
-        transition: all 0.2s;
+        padding: 12px 10px; border: 2px solid #555; background: #333; color: #fff;
+        border-radius: 15px; cursor: pointer; font-size: 0.9rem; flex: 1; text-align: center; min-width: 80px;
     }
-    .select-btn:active { transform: scale(0.95); }
     .select-btn.active { background: #007bff; border-color: #007bff; }
-    
-    /* 感度ボタン色 */
     .btn-sense-low.active { background: #28a745; border-color: #28a745; } 
     .btn-sense-mid.active { background: #007bff; border-color: #007bff; } 
     .btn-sense-high.active { background: #d93025; border-color: #d93025; } 
@@ -52,7 +47,6 @@
     #start-app-btn {
         padding: 15px 60px; background: #28a745; color: white; border: none;
         border-radius: 30px; font-size: 1.5rem; font-weight: bold; margin-top: 20px; cursor: pointer;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     }
 
     /* --- メイン画面UI --- */
@@ -61,20 +55,18 @@
         background: rgba(0, 0, 0, 0.85); 
         padding: 10px 0;
         display: flex; flex-direction: column; gap: 5px;
-        pointer-events: none; /* 下のキャンバスを触れるように */
+        pointer-events: none; 
     }
 
-    /* 上段：ステータス */
     .status-row {
         display: flex; justify-content: space-between; align-items: center;
         padding: 0 15px; font-size: 0.9rem; color: #aaa; pointer-events: auto;
     }
     .status-badge { 
         background: #444; padding: 4px 10px; border-radius: 15px; 
-        border: 1px solid #666; cursor: pointer; /* タップ可能に */
+        border: 1px solid #666; cursor: pointer; 
     }
 
-    /* 中段：カウント */
     .count-row {
         display: flex; justify-content: space-around; align-items: center;
         padding: 5px 0;
@@ -82,13 +74,17 @@
     .count-box { text-align: center; }
     .count-label { font-size: 0.7rem; color: #ccc; }
     .count-val { font-size: 2.5rem; font-weight: bold; line-height: 1; }
+    
     #status-message { 
-        color: #4caf50; font-size: 1.3rem; font-weight: bold; 
-        background: rgba(0,0,0,0.6); padding: 5px 20px; border-radius: 10px;
-        min-width: 120px; text-align: center;
+        color: #fff; font-size: 1.2rem; font-weight: bold; 
+        background: #333; padding: 5px 15px; border-radius: 10px;
+        min-width: 140px; text-align: center; border: 1px solid #555;
     }
+    /* 状態によって色を変える */
+    #status-message.ready { color: #aaa; border-color: #aaa; }
+    #status-message.action { color: #ff9800; border-color: #ff9800; } /* 握り中など */
+    #status-message.ok { color: #4caf50; border-color: #4caf50; background: rgba(76, 175, 80, 0.2); } /* 完了 */
 
-    /* 下段：指インジケーター */
     #finger-container {
         margin-top: 0; align-self: center; text-align: center;
         background: rgba(255,255,255,0.1); padding: 5px 20px; border-radius: 15px;
@@ -118,7 +114,7 @@
 <body>
 
 <div id="settings-overlay">
-    <h1 style="margin-bottom:15px;">手指リハ設定 V14</h1>
+    <h1 style="margin-bottom:15px;">手指リハ設定 V15</h1>
     
     <div class="setting-group">
         <div class="setting-title">1. 動きのパターン</div>
@@ -156,7 +152,7 @@
 <div id="header-panel">
     <div class="status-row">
         <div class="status-badge" id="sense-badge" onclick="toggleSensitivity()">感度: 中</div>
-        <div class="status-badge" id="hand-badge" onclick="manualFlipHand()">自動検出中...</div>
+        <div class="status-badge" id="hand-badge">検出中...</div>
     </div>
 
     <div class="count-row">
@@ -164,7 +160,7 @@
             <div class="count-label">現在</div>
             <div class="count-val" id="current-count">0</div>
         </div>
-        <div id="status-message">準備中</div>
+        <div id="status-message" class="ready">準備中</div>
         <div class="count-box">
             <div class="count-label">目標</div>
             <div class="count-val" id="target-count-display">--</div>
@@ -184,27 +180,28 @@
 <button id="reset-btn">設定に戻る</button>
 
 <script>
-    // PWA Service Worker (Cache Busting V14)
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
     }
 
-    // Variables
+    // --- Variables ---
     let targetCount = 10;
     let currentCount = 0;
     let mode = 'GRASP'; 
     let sensitivity = 'MEDIUM';
-    let stepState = 0; 
     let isCelebrated = false;
+    
+    // 状態管理用
+    let state = "WAITING"; // WAITING(初期/リセット待ち) -> ACTION(動作中) -> COOLDOWN(完了)
     let fingerLatch = [false, false, false, false, false];
     let prevBentCount = 0;
-    let isVisualOrderNormal = true;
-    let lostFrames = 0;
-    const LOST_THRESHOLD = 10; 
     
-    // 左右の手動補正用フラグ
-    let manualFlip = false; 
-    let lastHandedness = "";
+    // 画面上の並び順
+    let isThumbLeft = true; 
+
+    // ロスト対策
+    let lostFrames = 0;
+    const LOST_THRESHOLD = 20; 
 
     const synth = window.speechSynthesis;
     function speak(text, force = false) {
@@ -231,7 +228,7 @@
     const handBadge = document.getElementById('hand-badge');
     const senseBadge = document.getElementById('sense-badge');
 
-    // Setup Listeners
+    // UI Setup
     modeBtns.forEach(btn => btn.onclick = () => {
         modeBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
@@ -253,48 +250,6 @@
         sensitivity = btn.dataset.sense;
     });
 
-    // Start Button
-    document.getElementById('start-app-btn').onclick = () => {
-        settingsOverlay.style.display = 'none';
-        currentCount = 0;
-        stepState = 0;
-        isCelebrated = false;
-        fingerLatch = [false, false, false, false, false];
-        prevBentCount = 0;
-        
-        celebrationMsg.style.display = 'none';
-        currentCountDisplay.innerText = 0;
-        targetCountDisplay.innerText = targetCount;
-        updateVisualizer([false,false,false,false,false]);
-        
-        updateSenseBadge();
-
-        let startMsg = "スタート";
-        if(mode === 'GRASP') { startMsg = "握って！"; statusMessage.innerText = "握って"; }
-        if(mode === 'FINGER') { startMsg = "パーにして"; statusMessage.innerText = "パーにして"; }
-        if(mode === 'JANKEN') { startMsg = "最初はグー"; statusMessage.innerText = "グー"; }
-        
-        startCamera();
-        speak(startMsg, true);
-    };
-    
-    document.getElementById('reset-btn').onclick = () => location.reload();
-
-    // Functions for Badges
-    function updateSenseBadge() {
-        let sText = "中";
-        if(sensitivity==='LOW') sText="弱";
-        if(sensitivity==='HIGH') sText="強";
-        senseBadge.innerText = `感度: ${sText}`;
-    }
-    
-    // 左右の手動反転機能（バッジタップで発動）
-    window.manualFlipHand = function() {
-        manualFlip = !manualFlip;
-        updateHandBadgeUI(lastHandedness);
-    };
-    
-    // 感度切り替え（バッジタップで発動）
     window.toggleSensitivity = function() {
         if(sensitivity === 'MEDIUM') sensitivity = 'HIGH';
         else if(sensitivity === 'HIGH') sensitivity = 'LOW';
@@ -303,16 +258,41 @@
         speak("感度" + senseBadge.innerText.replace("感度: ",""), true);
     };
 
-    function updateHandBadgeUI(aiLabel) {
-        let displayLabel = aiLabel;
-        if (manualFlip) {
-            displayLabel = (aiLabel === 'Left') ? 'Right' : 'Left';
-        }
-        // 日本語表記 + 反転マーク
-        let text = (displayLabel === 'Left') ? '左手' : '右手';
-        if (manualFlip) text += " (反転)";
-        handBadge.innerText = text;
-        handBadge.style.color = manualFlip ? "#ff9800" : "#00bcd4";
+    function updateSenseBadge() {
+        let sText = "中";
+        if(sensitivity==='LOW') sText="弱";
+        if(sensitivity==='HIGH') sText="強";
+        senseBadge.innerText = `感度: ${sText}`;
+    }
+
+    document.getElementById('start-app-btn').onclick = () => {
+        settingsOverlay.style.display = 'none';
+        currentCount = 0;
+        state = "WAITING";
+        isCelebrated = false;
+        fingerLatch = [false, false, false, false, false];
+        prevBentCount = 0;
+        
+        celebrationMsg.style.display = 'none';
+        currentCountDisplay.innerText = 0;
+        targetCountDisplay.innerText = targetCount;
+        updateVisualizer([false,false,false,false,false]);
+        updateSenseBadge();
+
+        let startMsg = "スタート";
+        if(mode === 'GRASP') { startMsg = "握って！"; setStatus("握って", "ready"); }
+        if(mode === 'FINGER') { startMsg = "パーにして"; setStatus("パーにして", "ready"); }
+        if(mode === 'JANKEN') { startMsg = "最初はグー"; setStatus("グー", "ready"); }
+        
+        startCamera();
+        speak(startMsg, true);
+    };
+    document.getElementById('reset-btn').onclick = () => location.reload();
+
+    function setStatus(text, type) {
+        statusMessage.innerText = text;
+        statusMessage.className = "";
+        statusMessage.classList.add(type);
     }
 
     // MediaPipe
@@ -332,17 +312,22 @@
             lostFrames = 0; 
             const landmarks = results.multiHandLandmarks[0];
             
-            // 1. AIによる左右判定
-            let aiHandedness = results.multiHandedness[0].label; // 'Left' or 'Right'
-            lastHandedness = aiHandedness;
-            updateHandBadgeUI(aiHandedness);
-
-            // 2. 指の並び順 (X座標比較)
-            // 親指(4)と小指(20)のX座標を比較して、見た目の並び順を決定
+            // ★V15: 座標による絶対的な左右・並び順判定
+            // 親指(4) と 小指(20) のX座標を比較
+            // 親指が小指より左(xが小さい)なら「親→小」の並び
+            // これを基準にUIを描画すれば、右手・左手・裏表関係なく、常に見たままの並びになる
             const thumbX = landmarks[4].x;
             const pinkyX = landmarks[20].x;
-            isVisualOrderNormal = thumbX < pinkyX; 
-            fingerLabels.innerText = isVisualOrderNormal ? "親 人 中 薬 小" : "小 薬 中 人 親";
+            isThumbLeft = thumbX < pinkyX; // true: [親...小], false: [小...親]
+
+            // UI更新
+            if (isThumbLeft) {
+                fingerLabels.innerText = "親 人 中 薬 小";
+                handBadge.innerText = "親指が左";
+            } else {
+                fingerLabels.innerText = "小 薬 中 人 親";
+                handBadge.innerText = "親指が右";
+            }
 
             // 描画
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
@@ -350,7 +335,7 @@
 
             if(currentCount >= targetCount && !isCelebrated) {
                 isCelebrated = true;
-                statusMessage.innerText = "達成！";
+                setStatus("達成！", "ok");
                 celebrationMsg.style.display = "block";
                 speak("スゴイですね！目標達成です！", true);
                 canvasCtx.restore();
@@ -358,11 +343,13 @@
             }
             if (isCelebrated) { canvasCtx.restore(); return; }
 
-            const bentStatus = getBentStatusV13(landmarks, sensitivity); 
+            // 曲げ判定
+            const bentStatus = getBentStatusV15(landmarks, sensitivity); 
             
             if (mode === 'FINGER') {
                 processFingerMode(bentStatus);
             } else {
+                // 握り・ジャンケン用: 「伸びている」状態配列
                 const extended = bentStatus.map(b => !b);
                 updateVisualizer(extended);
                 if (mode === 'GRASP') processGrasp(extended);
@@ -377,36 +364,43 @@
 
     function updateVisualizer(statusArray) {
         let displayArr = [...statusArray];
-        if (!isVisualOrderNormal) displayArr.reverse();
+        // もし親指が右にあるなら、表示配列も逆転させる
+        if (!isThumbLeft) displayArr.reverse();
         const marks = displayArr.map(isOn => isOn ? "〇" : "・").join(" ");
         fingerVisualizer.innerText = marks;
     }
 
-    // --- Logic ---
-    function processFingerMode(bentStatus) {
-        const beforeCount = fingerLatch.filter(Boolean).length;
-        
-        if (stepState === 99) {
-            updateVisualizer(fingerLatch);
-            const currentBentCount = bentStatus.filter(Boolean).length;
-            let resetThreshold = (sensitivity === 'HIGH') ? 2 : 1;
+    // --- ロジック V15 (ステートレス・確実判定) ---
 
-            if (currentBentCount <= resetThreshold) { 
-                stepState = 0;
-                fingerLatch = [false,false,false,false,false];
+    function processFingerMode(bentStatus) {
+        const currentBentCount = bentStatus.filter(Boolean).length;
+        const beforeLatchCount = fingerLatch.filter(Boolean).length;
+
+        // 1. リセット待ち (完了後、手が開くのを待つ)
+        if (state === "COOLDOWN") {
+            updateVisualizer(fingerLatch); // 全○表示維持
+            
+            // 感度強なら1本くらい曲がっててもOK
+            let resetLimit = (sensitivity === 'HIGH') ? 1 : 0;
+            
+            if (currentBentCount <= resetLimit) {
+                // リセット完了 -> 次へ
+                state = "WAITING";
+                fingerLatch = [false, false, false, false, false];
                 prevBentCount = 0;
-                updateVisualizer(fingerLatch);
-                statusMessage.innerText = "スタート";
+                setStatus("スタート", "ready");
                 speak("次へ", true);
             } else {
-                statusMessage.innerText = "パーに戻して";
+                setStatus("パーに戻して", "action");
             }
             return;
         }
 
-        const currentBentCount = bentStatus.filter(Boolean).length;
-        if (prevBentCount < 2 && currentBentCount === 5) { /* skip */ }
-        else {
+        // 2. 計測中
+        // いきなりグー防止
+        if (prevBentCount < 2 && currentBentCount === 5) {
+            // 無効
+        } else {
             for(let i=0; i<5; i++) {
                 if (bentStatus[i]) fingerLatch[i] = true;
             }
@@ -414,34 +408,55 @@
         prevBentCount = currentBentCount;
         updateVisualizer(fingerLatch);
 
-        const afterCount = fingerLatch.filter(Boolean).length;
-        if (afterCount > beforeCount && afterCount < 5) speak(afterCount.toString(), true);
+        const afterLatchCount = fingerLatch.filter(Boolean).length;
         
-        if (afterCount === 0) statusMessage.innerText = "指を曲げて";
-        else if (afterCount < 5) statusMessage.innerText = "あと " + (5 - afterCount) + " 本";
-        else if (afterCount === 5 && stepState !== 99) {
+        // カウントアップ発声
+        if (afterLatchCount > beforeLatchCount && afterLatchCount < 5) {
+            speak(afterLatchCount.toString(), true);
+        }
+
+        if (afterLatchCount === 0) setStatus("指を曲げて", "ready");
+        else if (afterLatchCount < 5) setStatus("あと " + (5 - afterLatchCount) + " 本", "action");
+        else if (afterLatchCount === 5) {
+            // 完了！
             speak("5", true);
             setTimeout(() => speak("セット完了", false), 600); 
-            incrementCount(false);
-            stepState = 99; 
-            statusMessage.innerText = "パーに戻して";
+            
+            currentCount++;
+            currentCountDisplay.innerText = currentCount;
+            state = "COOLDOWN";
+            setStatus("パーに戻して", "ok");
         }
     }
 
     function processGrasp(extended) {
         const count = extended.filter(Boolean).length;
+        // 感度HIGHのときは、開く判定を緩和 (3本でOK)
         let openThresh = (sensitivity === 'HIGH') ? 3 : 4;
 
-        if (count <= 1) { 
-            if (stepState === 0) { stepState = 1; statusMessage.innerText = "開いて！"; }
-        } else if (count >= openThresh) { 
-            if (stepState === 1) { incrementCount(true); stepState = 0; statusMessage.innerText = "握って"; }
+        // 握った (count <= 1)
+        if (state === "WAITING" && count <= 1) {
+            state = "HOLDING";
+            setStatus("開いて！", "action");
+        } 
+        // 開いた (count >= openThresh)
+        else if (state === "HOLDING" && count >= openThresh) {
+            state = "WAITING";
+            currentCount++;
+            currentCountDisplay.innerText = currentCount;
+            speak(currentCount + "回", true);
+            setStatus("握って", "ready");
+        }
+        // 初期状態または途中
+        else if (state === "WAITING") {
+            setStatus("握って", "ready");
         }
     }
 
     function processJanken(extended) {
         const count = extended.filter(Boolean).length;
         let shape = 'UNKNOWN';
+        
         let rockThresh = 1;
         let paperThresh = (sensitivity === 'HIGH') ? 3 : 4;
 
@@ -449,24 +464,29 @@
         else if (count >= paperThresh) shape = 'PAPER';
         else if (extended[1] && extended[2] && !extended[3] && !extended[4]) shape = 'SCISSORS';
 
-        if (stepState === 0 && shape === 'ROCK') {
-            speak("グー", true); stepState = 1; statusMessage.innerText = "次はチョキ";
-        } else if (stepState === 1 && shape === 'SCISSORS') {
-            speak("チョキ", true); stepState = 2; statusMessage.innerText = "最後はパー";
-        } else if (stepState === 2 && shape === 'PAPER') {
+        if (state === "WAITING" && shape === 'ROCK') {
+            speak("グー", true); 
+            state = "GU_DONE"; 
+            setStatus("次はチョキ", "action");
+        } 
+        else if (state === "GU_DONE" && shape === 'SCISSORS') {
+            speak("チョキ", true); 
+            state = "CHOKI_DONE"; 
+            setStatus("最後はパー", "action");
+        } 
+        else if (state === "CHOKI_DONE" && shape === 'PAPER') {
             speak("パー！", true); 
-            incrementCount(false);
-            stepState = 3; 
-            statusMessage.innerText = "グーに戻して";
-        } else if (stepState === 3 && shape === 'ROCK') {
-             stepState = 0; speak("グー", true); stepState = 1; statusMessage.innerText = "次はチョキ";
+            currentCount++;
+            currentCountDisplay.innerText = currentCount;
+            state = "COOLDOWN"; 
+            setStatus("グーに戻して", "ok");
+        } 
+        else if (state === "COOLDOWN" && shape === 'ROCK') {
+            // リセット完了して次へ
+            speak("グー", true);
+            state = "GU_DONE";
+            setStatus("次はチョキ", "action");
         }
-    }
-
-    function incrementCount(withVoice = true) {
-        currentCount++;
-        currentCountDisplay.innerText = currentCount;
-        if (withVoice && mode === 'GRASP') speak(currentCount + "回", true);
     }
 
     function getAngle(A, B, C) {
@@ -478,49 +498,45 @@
         return Math.acos(Math.min(Math.max(dot / (mag1 * mag2), -1), 1)) * (180 / Math.PI);
     }
 
-    function getBentStatusV13(landmarks, sensitivity) {
+    // ★V15: 判定ロジックの適正化
+    // 感度「強」でも「伸ばしたこと」をちゃんと検知できるように緩和係数を調整
+    function getBentStatusV15(landmarks, sensitivity) {
         const bent = [false, false, false, false, false];
         const wrist = landmarks[0];
         const handSize = Math.hypot(wrist.x - landmarks[9].x, wrist.y - landmarks[9].y);
 
         let threshAngle = 140; 
-        let threshDistRatio = 1.2; 
         let threshTipMcpRatio = 1.2; 
 
         if (sensitivity === 'HIGH') {
-            // V13修正: 誤爆防止のため、角度は165度、TipMcp比率は0.9（少し縮んだらOK）にする
-            threshAngle = 165; 
-            threshDistRatio = 1.3; 
-            threshTipMcpRatio = 0.9; // ここを厳しくして誤判定防止
+            threshAngle = 160; // 170だと伸ばしても曲げ判定になりがちなので160へ
+            threshTipMcpRatio = 1.1; // 距離判定も少し厳しくして「伸ばし」を検知しやすく
         } else if (sensitivity === 'LOW') {
             threshAngle = 100;
-            threshDistRatio = 0.9;
-            threshTipMcpRatio = 0.7;
+            threshTipMcpRatio = 0.8;
         }
 
+        // 親指
         const angleThumb = getAngle(landmarks[2], landmarks[3], landmarks[4]);
         const distThumbTipToPinkyBase = Math.hypot(landmarks[4].x - landmarks[17].x, landmarks[4].y - landmarks[17].y);
-        let thumbAngleThresh = (sensitivity === 'HIGH') ? 170 : 160;
-        if(sensitivity === 'LOW') thumbAngleThresh = 140;
-        let thumbDistThresh = (sensitivity === 'HIGH') ? 1.0 : 0.8;
+        let thumbAngleThresh = (sensitivity === 'HIGH') ? 160 : 150;
+        let thumbDistThresh = (sensitivity === 'HIGH') ? 0.9 : 0.8;
         
         bent[0] = angleThumb < thumbAngleThresh || distThumbTipToPinkyBase < (handSize * thumbDistThresh);
 
+        // 他指
         const fingerTips = [null, 8, 12, 16, 20];
         const fingerMcp = [null, 5, 9, 13, 17];
         
         for (let i = 1; i <= 4; i++) {
             const pipIdx = i*4 + 2;
             const angle = getAngle(landmarks[pipIdx-1], landmarks[pipIdx], landmarks[pipIdx+1]);
-            const distTipWrist = Math.hypot(landmarks[fingerTips[i]].x - wrist.x, landmarks[fingerTips[i]].y - wrist.y);
-            const distMcpWrist = Math.hypot(landmarks[fingerMcp[i]].x - wrist.x, landmarks[fingerMcp[i]].y - wrist.y);
             const distTipMcp = Math.hypot(landmarks[fingerTips[i]].x - landmarks[fingerMcp[i]].x, landmarks[fingerTips[i]].y - landmarks[fingerMcp[i]].y);
             
             const condAngle = angle < threshAngle;
-            const condWristDist = distTipWrist < (distMcpWrist * threshDistRatio);
             const condTipMcp = distTipMcp < (handSize * threshTipMcpRatio);
 
-            bent[i] = condAngle || condWristDist || condTipMcp;
+            bent[i] = condAngle || condTipMcp;
         }
         return bent;
     }
