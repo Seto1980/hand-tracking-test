@@ -36,45 +36,58 @@
         border-radius: 20px; cursor: pointer; font-size: 1rem; flex: 1; text-align: center; min-width: 70px;
     }
     .select-btn.active { background: #007bff; border-color: #007bff; }
-    /* 感度ボタンの色分け */
+    /* 感度ボタン */
     .btn-sense-low.active { background: #28a745; border-color: #28a745; } 
     .btn-sense-mid.active { background: #007bff; border-color: #007bff; } 
     .btn-sense-high.active { background: #d93025; border-color: #d93025; } 
 
     input[type="number"] { padding: 10px; border-radius: 10px; border: none; width: 80px; text-align: center; font-size: 1.2rem; }
+    
+    /* スタートボタン */
     #start-app-btn {
         padding: 15px 50px; background: #28a745; color: white; border: none;
         border-radius: 30px; font-size: 1.5rem; font-weight: bold; margin-top: 10px; cursor: pointer;
     }
 
-    /* --- メイン画面 --- */
-    #info-panel {
+    /* --- メイン画面UI (被り対策: Flexbox) --- */
+    #header-panel {
         position: absolute; top: 0; left: 0; width: 100%; z-index: 20;
-        background: rgba(0, 0, 0, 0.7); padding: 10px 0;
-        display: flex; flex-direction: column; align-items: center;
+        background: rgba(0, 0, 0, 0.8); 
+        padding: 10px 5px;
+        display: flex; flex-direction: column; gap: 5px;
         pointer-events: none; 
     }
-    .info-row { display: flex; justify-content: space-around; width: 100%; align-items: center; pointer-events: auto; }
-    .info-item { text-align: center; }
-    .info-label { font-size: 0.7rem; color: #ccc; }
-    .info-value { font-size: 1.5rem; font-weight: bold; }
-    #status-text { color: #4caf50; font-size: 1.2rem; min-width: 100px; }
-    
+
+    /* 上段：感度・左右・状態 */
+    .status-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0 10px; font-size: 0.85rem; color: #aaa;
+    }
+    .status-badge { background: #333; padding: 2px 8px; border-radius: 4px; }
+
+    /* 中段：カウント・目標 */
+    .count-row {
+        display: flex; justify-content: space-around; align-items: center;
+        padding: 5px 0;
+    }
+    .count-box { text-align: center; }
+    .count-label { font-size: 0.7rem; color: #ccc; }
+    .count-val { font-size: 2.5rem; font-weight: bold; line-height: 1; }
+    #status-message { 
+        color: #4caf50; font-size: 1.2rem; font-weight: bold; 
+        background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 10px;
+    }
+
+    /* 下段：指インジケーター */
     #finger-container {
-        margin-top: 10px; display: flex; flex-direction: column; align-items: center;
-        background: rgba(0,0,0,0.5); padding: 5px 20px; border-radius: 10px;
+        margin-top: 0; align-self: center; text-align: center;
+        background: rgba(255,255,255,0.1); padding: 5px 20px; border-radius: 15px;
     }
     #finger-visualizer {
-        font-family: monospace; font-size: 1.5rem; color: #00FF00; letter-spacing: 5px; font-weight: bold;
+        font-family: monospace; font-size: 1.5rem; color: #00FF00; letter-spacing: 3px; font-weight: bold;
     }
     #finger-labels {
-        font-size: 0.8rem; color: #fff; margin-top: 2px; letter-spacing: 8px; font-weight: bold;
-    }
-    #hand-side-label {
-        position: absolute; top: 5px; right: 10px; font-size: 0.8rem; color: #00bcd4; font-weight: bold;
-    }
-    #sensitivity-display {
-        position: absolute; top: 5px; left: 10px; font-size: 0.8rem; color: #aaa; font-weight: bold;
+        font-size: 0.75rem; color: #fff; margin-top: 0px; letter-spacing: 6px;
     }
 
     #celebration-msg {
@@ -85,8 +98,9 @@
 
     .container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: #000; }
     video, canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+    
     #reset-btn {
-        position: absolute; bottom: 20px; right: 20px; z-index: 30;
+        position: absolute; bottom: 30px; right: 20px; z-index: 30;
         padding: 10px 20px; background: #555; color: white; border: none; border-radius: 5px; pointer-events: auto;
     }
 </style>
@@ -94,7 +108,7 @@
 <body>
 
 <div id="settings-overlay">
-    <h1 style="margin-bottom:15px;">手指リハ設定 Ver12</h1>
+    <h1 style="margin-bottom:10px;">手指リハ設定 V13</h1>
     
     <div class="setting-group">
         <div class="setting-title">1. 動きのパターン</div>
@@ -118,13 +132,19 @@
     <div class="setting-group">
         <div class="setting-title">3. 感度 (曲げ判定)</div>
         <div class="btn-group" id="sensitivity-group">
-            <div class="select-btn btn-sense-low" data-sense="LOW">弱<br>(厳格)</div>
-            <div class="select-btn btn-sense-mid active" data-sense="MEDIUM">中<br>(標準)</div>
-            <div class="select-btn btn-sense-high" data-sense="HIGH">強<br>(反応良)</div>
+            <div class="select-btn btn-sense-low" data-sense="LOW">弱<br>厳格</div>
+            <div class="select-btn btn-sense-mid active" data-sense="MEDIUM">中<br>標準</div>
+            <div class="select-btn btn-sense-high" data-sense="HIGH">強<br>反応良</div>
         </div>
-        <div style="font-size:0.8rem; color:#888; text-align:center; margin-top:5px;">
-            強：中間位や20%の屈曲でも反応<br>弱：しっかり握り込まないと反応しません
+    </div>
+
+    <div class="setting-group">
+        <div class="setting-title">4. 左右の手認識</div>
+        <div class="btn-group" id="flip-group">
+            <div class="select-btn active" data-flip="OFF">そのまま</div>
+            <div class="select-btn" data-flip="ON">反転する</div>
         </div>
+        <div style="font-size:0.7rem; color:#aaa; margin-top:5px; text-align:center;">左右が逆に表示される場合は「反転」を選んでください</div>
     </div>
 
     <button id="start-app-btn">スタート</button>
@@ -132,22 +152,26 @@
 
 <div id="celebration-msg">スゴイですね！<br>目標達成！</div>
 
-<div id="info-panel">
-    <div id="sensitivity-display">感度: 中</div>
-    <div id="hand-side-label">Detecting...</div>
-    <div class="info-row">
-        <div class="info-item">
-            <div class="info-label">現在</div>
-            <div class="info-value" id="current-count">0</div>
+<div id="header-panel">
+    <div class="status-row">
+        <div class="status-badge" id="sense-badge">感度: 中</div>
+        <div class="status-badge" id="hand-badge">Wait...</div>
+    </div>
+
+    <div class="count-row">
+        <div class="count-box">
+            <div class="count-label">現在</div>
+            <div class="count-val" id="current-count">0</div>
         </div>
-        <div class="info-item">
-            <div class="info-value" id="status-text">起動中...</div>
-        </div>
-        <div class="info-item">
-            <div class="info-label">目標</div>
-            <div class="info-value" id="target-count-display">--</div>
+        
+        <div id="status-message">準備中</div>
+
+        <div class="count-box">
+            <div class="count-label">目標</div>
+            <div class="count-val" id="target-count-display">--</div>
         </div>
     </div>
+
     <div id="finger-container">
         <div id="finger-visualizer">・ ・ ・ ・ ・</div>
         <div id="finger-labels">親 人 中 薬 小</div>
@@ -161,25 +185,24 @@
 <button id="reset-btn">設定に戻る</button>
 
 <script>
-    // --- PWA Service Worker ---
+    // PWA
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-            navigator.serviceWorker.register('./service-worker.js');
-        });
+        window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
     }
 
-    // --- 変数 ---
+    // 変数
     let targetCount = 10;
     let currentCount = 0;
     let mode = 'GRASP'; 
-    let sensitivity = 'MEDIUM'; 
+    let sensitivity = 'MEDIUM';
+    let isFlip = false; // 左右反転フラグ
     let stepState = 0; 
     let isCelebrated = false;
     let fingerLatch = [false, false, false, false, false];
     let prevBentCount = 0;
     let isVisualOrderNormal = true;
     let lostFrames = 0;
-    const LOST_THRESHOLD = 15; 
+    const LOST_THRESHOLD = 10; 
 
     const synth = window.speechSynthesis;
     function speak(text, force = false) {
@@ -191,46 +214,47 @@
         synth.speak(ut);
     }
 
-    // UI
+    // UI Elements
     const settingsOverlay = document.getElementById('settings-overlay');
     const modeBtns = document.querySelectorAll('#mode-group .select-btn');
     const countBtns = document.querySelectorAll('#count-group .select-btn');
     const senseBtns = document.querySelectorAll('#sensitivity-group .select-btn');
+    const flipBtns = document.querySelectorAll('#flip-group .select-btn');
     const customCountInput = document.getElementById('custom-count');
     const currentCountDisplay = document.getElementById('current-count');
     const targetCountDisplay = document.getElementById('target-count-display');
-    const statusText = document.getElementById('status-text');
+    const statusMessage = document.getElementById('status-message');
     const fingerVisualizer = document.getElementById('finger-visualizer');
     const fingerLabels = document.getElementById('finger-labels');
     const celebrationMsg = document.getElementById('celebration-msg');
-    const handSideLabel = document.getElementById('hand-side-label');
-    const sensitivityDisplay = document.getElementById('sensitivity-display');
+    const handBadge = document.getElementById('hand-badge');
+    const senseBadge = document.getElementById('sense-badge');
 
-    modeBtns.forEach(btn => {
-        btn.onclick = () => {
-            modeBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            mode = btn.dataset.mode;
-        };
+    // Setup
+    modeBtns.forEach(btn => btn.onclick = () => {
+        modeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        mode = btn.dataset.mode;
     });
-    countBtns.forEach(btn => {
-        btn.onclick = () => {
-            countBtns.forEach(b => b.classList.remove('active'));
-            customCountInput.value = '';
-            btn.classList.add('active');
-            targetCount = parseInt(btn.dataset.count);
-        };
+    countBtns.forEach(btn => btn.onclick = () => {
+        countBtns.forEach(b => b.classList.remove('active'));
+        customCountInput.value = '';
+        btn.classList.add('active');
+        targetCount = parseInt(btn.dataset.count);
     });
     customCountInput.oninput = () => {
         countBtns.forEach(b => b.classList.remove('active'));
         targetCount = parseInt(customCountInput.value) || 10;
     };
-    senseBtns.forEach(btn => {
-        btn.onclick = () => {
-            senseBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            sensitivity = btn.dataset.sense;
-        };
+    senseBtns.forEach(btn => btn.onclick = () => {
+        senseBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        sensitivity = btn.dataset.sense;
+    });
+    flipBtns.forEach(btn => btn.onclick = () => {
+        flipBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        isFlip = (btn.dataset.flip === 'ON');
     });
 
     document.getElementById('start-app-btn').onclick = () => {
@@ -240,27 +264,29 @@
         isCelebrated = false;
         fingerLatch = [false, false, false, false, false];
         prevBentCount = 0;
-        lostFrames = 0;
+        
         celebrationMsg.style.display = 'none';
         currentCountDisplay.innerText = 0;
         targetCountDisplay.innerText = targetCount;
         updateVisualizer([false,false,false,false,false]);
         
-        let senseText = "感度: 中";
-        if (sensitivity === 'LOW') senseText = "感度: 弱";
-        if (sensitivity === 'HIGH') senseText = "感度: 強";
-        sensitivityDisplay.innerText = senseText;
+        // 感度バッジ更新
+        let sText = "中";
+        if(sensitivity==='LOW') sText="弱";
+        if(sensitivity==='HIGH') sText="強";
+        senseBadge.innerText = `感度: ${sText}`;
 
         let startMsg = "スタート";
-        if(mode === 'GRASP') { startMsg = "握って！"; statusText.innerText = "握って"; }
-        if(mode === 'FINGER') { startMsg = "パーにして"; statusText.innerText = "パーにして"; }
-        if(mode === 'JANKEN') { startMsg = "最初はグー"; statusText.innerText = "グー"; }
+        if(mode === 'GRASP') { startMsg = "握って！"; statusMessage.innerText = "握って"; }
+        if(mode === 'FINGER') { startMsg = "パーにして"; statusMessage.innerText = "パーにして"; }
+        if(mode === 'JANKEN') { startMsg = "最初はグー"; statusMessage.innerText = "グー"; }
         
         startCamera();
         speak(startMsg, true);
     };
     document.getElementById('reset-btn').onclick = () => location.reload();
 
+    // MediaPipe
     const videoElement = document.getElementById('inputVideo');
     const canvasElement = document.getElementById('outputCanvas');
     const canvasCtx = canvasElement.getContext('2d');
@@ -277,20 +303,28 @@
             lostFrames = 0; 
             const landmarks = results.multiHandLandmarks[0];
             
+            // 手の左右判定 + 反転設定
+            let handedness = results.multiHandedness[0].label; // 'Left' or 'Right'
+            if (isFlip) {
+                handedness = (handedness === 'Left') ? 'Right' : 'Left';
+            }
+            handBadge.innerText = (handedness === 'Left') ? '左手' : '右手';
+
+            // 画面上の並び順 (親指X vs 小指X)
+            // 反転設定(isFlip)がある場合、見た目のロジックも影響を受ける可能性があるが
+            // 座標自体はカメラ映像に基づくので、X座標比較が最も確実
             const thumbX = landmarks[4].x;
             const pinkyX = landmarks[20].x;
-            isVisualOrderNormal = thumbX < pinkyX;
+            isVisualOrderNormal = thumbX < pinkyX; 
             fingerLabels.innerText = isVisualOrderNormal ? "親 人 中 薬 小" : "小 薬 中 人 親";
-            
-            const handedness = results.multiHandedness[0].label;
-            handSideLabel.innerText = handedness === 'Left' ? 'Left Hand' : 'Right Hand';
 
+            // 描画
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
             drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
 
             if(currentCount >= targetCount && !isCelebrated) {
                 isCelebrated = true;
-                statusText.innerText = "達成！";
+                statusMessage.innerText = "達成！";
                 celebrationMsg.style.display = "block";
                 speak("スゴイですね！目標達成です！", true);
                 canvasCtx.restore();
@@ -298,8 +332,8 @@
             }
             if (isCelebrated) { canvasCtx.restore(); return; }
 
-            // ★V12判定ロジック
-            const bentStatus = getBentStatusV12(landmarks, sensitivity); 
+            // 判定
+            const bentStatus = getBentStatusV13(landmarks, sensitivity); 
             
             if (mode === 'FINGER') {
                 processFingerMode(bentStatus);
@@ -311,7 +345,7 @@
             }
         } else {
             lostFrames++;
-            if (lostFrames >= LOST_THRESHOLD) handSideLabel.innerText = "Searching...";
+            if (lostFrames >= LOST_THRESHOLD) handBadge.innerText = "検索中...";
         }
         canvasCtx.restore();
     }
@@ -323,31 +357,39 @@
         fingerVisualizer.innerText = marks;
     }
 
-    // --- ロジック群 ---
+    // --- ロジック ---
 
     function processFingerMode(bentStatus) {
         const beforeCount = fingerLatch.filter(Boolean).length;
         
+        // リセット待ち
         if (stepState === 99) {
             updateVisualizer(fingerLatch);
             const currentBentCount = bentStatus.filter(Boolean).length;
+            
+            // 強感度の場合、少し曲がってても(2本)リセット扱いにする
             let resetThreshold = 0;
-            if (sensitivity === 'HIGH') resetThreshold = 1; 
+            if (sensitivity === 'HIGH') resetThreshold = 2; 
+            else if (sensitivity === 'MEDIUM') resetThreshold = 1;
 
             if (currentBentCount <= resetThreshold) { 
                 stepState = 0;
                 fingerLatch = [false,false,false,false,false];
                 prevBentCount = 0;
                 updateVisualizer(fingerLatch);
-                statusText.innerText = "スタート";
+                statusMessage.innerText = "スタート";
                 speak("次へ", true);
+            } else {
+                statusMessage.innerText = "パーに戻して";
             }
             return;
         }
 
         const currentBentCount = bentStatus.filter(Boolean).length;
-        if (prevBentCount < 2 && currentBentCount === 5) { /* skip */ }
-        else {
+        // いきなりグー防止 (2本未満 -> 5本)
+        if (prevBentCount < 2 && currentBentCount === 5) { 
+            // skip
+        } else {
             for(let i=0; i<5; i++) {
                 if (bentStatus[i]) fingerLatch[i] = true;
             }
@@ -358,144 +400,22 @@
         const afterCount = fingerLatch.filter(Boolean).length;
         if (afterCount > beforeCount && afterCount < 5) speak(afterCount.toString(), true);
         
-        if (afterCount === 0) statusText.innerText = "指を曲げて";
-        else if (afterCount < 5) statusText.innerText = "あと " + (5 - afterCount) + " 本";
+        if (afterCount === 0) statusMessage.innerText = "指を曲げて";
+        else if (afterCount < 5) statusMessage.innerText = "あと " + (5 - afterCount) + " 本";
         else if (afterCount === 5 && stepState !== 99) {
             speak("5", true);
             setTimeout(() => speak("セット完了", false), 600); 
             incrementCount(false);
             stepState = 99; 
-            statusText.innerText = "パーに戻して";
+            statusMessage.innerText = "パーに戻して";
         }
     }
 
     function processGrasp(extended) {
         const count = extended.filter(Boolean).length;
+        // 強感度なら、開く判定も甘くする(3本でOK)
+        let openThresh = 4;
+        if (sensitivity === 'HIGH') openThresh = 3;
+
         if (count <= 1) { 
-            if (stepState === 0) { stepState = 1; statusText.innerText = "開いて！"; }
-        } else if (count >= 4) { 
-            if (stepState === 1) { incrementCount(true); stepState = 0; statusText.innerText = "握って"; }
-        }
-    }
-
-    function processJanken(extended) {
-        const count = extended.filter(Boolean).length;
-        let shape = 'UNKNOWN';
-        if (count <= 1) shape = 'ROCK';
-        else if (count >= 4) shape = 'PAPER';
-        else if (extended[1] && extended[2] && !extended[3] && !extended[4]) shape = 'SCISSORS';
-
-        if (stepState === 0 && shape === 'ROCK') {
-            speak("グー", true); stepState = 1; statusText.innerText = "次はチョキ";
-        } else if (stepState === 1 && shape === 'SCISSORS') {
-            speak("チョキ", true); stepState = 2; statusText.innerText = "最後はパー";
-        } else if (stepState === 2 && shape === 'PAPER') {
-            speak("パー！", true); 
-            incrementCount(false);
-            stepState = 3; 
-            statusText.innerText = "グーに戻して";
-        } else if (stepState === 3 && shape === 'ROCK') {
-             stepState = 0; speak("グー", true); stepState = 1; statusText.innerText = "次はチョキ";
-        }
-    }
-
-    function incrementCount(withVoice = true) {
-        currentCount++;
-        currentCountDisplay.innerText = currentCount;
-        if (withVoice && mode === 'GRASP') speak(currentCount + "回", true);
-    }
-
-    function getAngle(A, B, C) {
-        const v1 = {x: A.x - B.x, y: A.y - B.y, z: A.z - B.z};
-        const v2 = {x: C.x - B.x, y: C.y - B.y, z: C.z - B.z};
-        const dot = v1.x * v2.x + v1.y * v2.y + (v1.z * v2.z || 0);
-        const mag1 = Math.sqrt(v1.x*v1.x + v1.y*v1.y + (v1.z*v1.z || 0));
-        const mag2 = Math.sqrt(v2.x*v2.x + v2.y*v2.y + (v2.z*v2.z || 0));
-        return Math.acos(Math.min(Math.max(dot / (mag1 * mag2), -1), 1)) * (180 / Math.PI);
-    }
-
-    // ★感度対応 V12 (中間位・回転対応強化版)
-    function getBentStatusV12(landmarks, sensitivity) {
-        const bent = [false, false, false, false, false];
-        const wrist = landmarks[0];
-        // スケール基準: 手首〜中指付け根
-        const handSize = Math.hypot(wrist.x - landmarks[9].x, wrist.y - landmarks[9].y);
-
-        // --- パラメータ設定 ---
-        let threshAngle = 140; 
-        let threshDistRatio = 1.2; // (指先-手首) vs (付け根-手首)
-        let threshTipMcpRatio = 1.2; // (指先-付け根) vs (手のサイズ) ★新指標
-
-        if (sensitivity === 'HIGH') {
-            // 強: わずかな曲がりでも反応
-            threshAngle = 170; // ほぼ真っ直ぐ(180)でも、少し曲がればOK
-            threshDistRatio = 1.4; 
-            threshTipMcpRatio = 1.3; // 指自体の長さチェックも甘く
-        } else if (sensitivity === 'LOW') {
-            // 弱: 厳格
-            threshAngle = 100;
-            threshDistRatio = 0.9;
-            threshTipMcpRatio = 0.8;
-        }
-
-        // 親指判定 (変化なし)
-        const angleThumb = getAngle(landmarks[2], landmarks[3], landmarks[4]);
-        const distThumbTipToPinkyBase = Math.hypot(landmarks[4].x - landmarks[17].x, landmarks[4].y - landmarks[17].y);
-        let thumbAngleThresh = (sensitivity === 'HIGH') ? 170 : 160;
-        if(sensitivity === 'LOW') thumbAngleThresh = 140;
-        let thumbDistThresh = (sensitivity === 'HIGH') ? 1.0 : 0.8;
-        
-        bent[0] = angleThumb < thumbAngleThresh || distThumbTipToPinkyBase < (handSize * thumbDistThresh);
-
-        // 他の4本 (Index ~ Pinky)
-        const fingerTips = [null, 8, 12, 16, 20];
-        const fingerMcp = [null, 5, 9, 13, 17];
-        
-        for (let i = 1; i <= 4; i++) {
-            const pipIdx = i*4 + 2;
-            const angle = getAngle(landmarks[pipIdx-1], landmarks[pipIdx], landmarks[pipIdx+1]);
-            
-            // 指先-手首 の距離
-            const distTipWrist = Math.hypot(landmarks[fingerTips[i]].x - wrist.x, landmarks[fingerTips[i]].y - wrist.y);
-            const distMcpWrist = Math.hypot(landmarks[fingerMcp[i]].x - wrist.x, landmarks[fingerMcp[i]].y - wrist.y);
-            
-            // ★新判定: 指先-付け根(MCP) の距離 (これが指の「折りたたみ」を一番表す)
-            const distTipMcp = Math.hypot(landmarks[fingerTips[i]].x - landmarks[fingerMcp[i]].x, landmarks[fingerTips[i]].y - landmarks[fingerMcp[i]].y);
-            
-            // 判定条件 (OR条件なので、どれか一つでも満たせば「曲がった」とみなす)
-            // 1. 角度が閾値より小さい
-            const condAngle = angle < threshAngle;
-            // 2. 手首への距離が縮まっている (従来)
-            const condWristDist = distTipWrist < (distMcpWrist * threshDistRatio);
-            // 3. 指先と付け根が近づいている (中間位・回転対策)
-            // 通常、伸ばした指の長さは handSize * 0.9 ~ 1.2 くらい。曲げると小さくなる。
-            // HIGHなら、少しでも短くなれば(handSize * 1.3以下なら)OKにする
-            const condTipMcp = distTipMcp < (handSize * threshTipMcpRatio);
-
-            bent[i] = condAngle || condWristDist || condTipMcp;
-        }
-        return bent;
-    }
-
-    async function startCamera() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: 1280, height: 720 } 
-            });
-            videoElement.srcObject = stream;
-            videoElement.play();
-            videoElement.onloadedmetadata = () => {
-                canvasElement.width = videoElement.videoWidth;
-                canvasElement.height = videoElement.videoHeight;
-                processVideo();
-            };
-        } catch (err) { alert("カメラエラー: " + err.name); }
-    }
-
-    async function processVideo() {
-        await hands.send({image: videoElement});
-        requestAnimationFrame(processVideo);
-    }
-</script>
-</body>
-</html>
+            if (stepState
