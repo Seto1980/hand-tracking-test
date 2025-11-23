@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#1e1e1e">
 <title>AIリハビリカウンター</title>
 
@@ -17,13 +17,14 @@
     body { 
         background-color: #1e1e1e; color: #fff; margin: 0; overflow: hidden; font-family: sans-serif; 
         display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;
-        user-select: none; -webkit-user-select: none;
+        user-select: none; -webkit-user-select: none; touch-action: manipulation;
     }
 
-    /* --- 設定画面 --- */
+    /* --- 設定画面 (最強の前面固定) --- */
     #settings-overlay {
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(30, 30, 30, 0.98); z-index: 100;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(30, 30, 30, 0.98); 
+        z-index: 10000; /* 確実に最前面 */
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         padding: 20px; box-sizing: border-box;
         overflow-y: auto; 
@@ -31,41 +32,49 @@
     .setting-group { margin-bottom: 20px; width: 100%; max-width: 400px; }
     .setting-title { font-size: 1.1rem; color: #aaa; margin-bottom: 8px; text-align: center; }
     .btn-group { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    
     .select-btn {
-        padding: 10px 15px; border: 2px solid #555; background: #333; color: #fff;
-        border-radius: 20px; cursor: pointer; font-size: 1rem; flex: 1; text-align: center; min-width: 70px;
+        padding: 12px 15px; /* タップしやすい大きさ */
+        border: 2px solid #555; background: #333; color: #fff;
+        border-radius: 20px; cursor: pointer; font-size: 1rem; flex: 1; text-align: center; min-width: 80px;
+        transition: all 0.2s;
     }
+    .select-btn:active { transform: scale(0.95); }
     .select-btn.active { background: #007bff; border-color: #007bff; }
-    /* 感度ボタン */
+    
+    /* 感度ボタン色 */
     .btn-sense-low.active { background: #28a745; border-color: #28a745; } 
     .btn-sense-mid.active { background: #007bff; border-color: #007bff; } 
     .btn-sense-high.active { background: #d93025; border-color: #d93025; } 
 
-    input[type="number"] { padding: 10px; border-radius: 10px; border: none; width: 80px; text-align: center; font-size: 1.2rem; }
+    input[type="number"] { padding: 10px; border-radius: 10px; border: none; width: 100px; text-align: center; font-size: 1.5rem; }
     
-    /* スタートボタン */
     #start-app-btn {
-        padding: 15px 50px; background: #28a745; color: white; border: none;
-        border-radius: 30px; font-size: 1.5rem; font-weight: bold; margin-top: 10px; cursor: pointer;
+        padding: 15px 60px; background: #28a745; color: white; border: none;
+        border-radius: 30px; font-size: 1.5rem; font-weight: bold; margin-top: 20px; cursor: pointer;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     }
 
-    /* --- メイン画面UI (被り対策: Flexbox) --- */
+    /* --- メイン画面UI --- */
     #header-panel {
-        position: absolute; top: 0; left: 0; width: 100%; z-index: 20;
-        background: rgba(0, 0, 0, 0.8); 
-        padding: 10px 5px;
+        position: absolute; top: 0; left: 0; width: 100%; z-index: 50;
+        background: rgba(0, 0, 0, 0.85); 
+        padding: 10px 0;
         display: flex; flex-direction: column; gap: 5px;
-        pointer-events: none; 
+        pointer-events: none; /* 下のキャンバスを触れるように */
     }
 
-    /* 上段：感度・左右・状態 */
+    /* 上段：ステータス */
     .status-row {
         display: flex; justify-content: space-between; align-items: center;
-        padding: 0 10px; font-size: 0.85rem; color: #aaa;
+        padding: 0 15px; font-size: 0.9rem; color: #aaa; pointer-events: auto;
     }
-    .status-badge { background: #333; padding: 2px 8px; border-radius: 4px; }
+    .status-badge { 
+        background: #444; padding: 4px 10px; border-radius: 15px; 
+        border: 1px solid #666; cursor: pointer; /* タップ可能に */
+    }
 
-    /* 中段：カウント・目標 */
+    /* 中段：カウント */
     .count-row {
         display: flex; justify-content: space-around; align-items: center;
         padding: 5px 0;
@@ -74,8 +83,9 @@
     .count-label { font-size: 0.7rem; color: #ccc; }
     .count-val { font-size: 2.5rem; font-weight: bold; line-height: 1; }
     #status-message { 
-        color: #4caf50; font-size: 1.2rem; font-weight: bold; 
-        background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 10px;
+        color: #4caf50; font-size: 1.3rem; font-weight: bold; 
+        background: rgba(0,0,0,0.6); padding: 5px 20px; border-radius: 10px;
+        min-width: 120px; text-align: center;
     }
 
     /* 下段：指インジケーター */
@@ -84,31 +94,31 @@
         background: rgba(255,255,255,0.1); padding: 5px 20px; border-radius: 15px;
     }
     #finger-visualizer {
-        font-family: monospace; font-size: 1.5rem; color: #00FF00; letter-spacing: 3px; font-weight: bold;
+        font-family: monospace; font-size: 1.6rem; color: #00FF00; letter-spacing: 3px; font-weight: bold;
     }
     #finger-labels {
-        font-size: 0.75rem; color: #fff; margin-top: 0px; letter-spacing: 6px;
+        font-size: 0.8rem; color: #fff; margin-top: 0px; letter-spacing: 6px;
     }
 
     #celebration-msg {
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
         font-size: 3rem; color: gold; font-weight: bold; text-shadow: 0 0 10px red;
-        display: none; z-index: 50; text-align: center; width: 100%;
+        display: none; z-index: 200; text-align: center; width: 100%;
     }
 
     .container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: #000; }
     video, canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; }
     
     #reset-btn {
-        position: absolute; bottom: 30px; right: 20px; z-index: 30;
-        padding: 10px 20px; background: #555; color: white; border: none; border-radius: 5px; pointer-events: auto;
+        position: absolute; bottom: 30px; right: 20px; z-index: 100;
+        padding: 12px 25px; background: #555; color: white; border: none; border-radius: 8px; pointer-events: auto; cursor: pointer;
     }
 </style>
 </head>
 <body>
 
 <div id="settings-overlay">
-    <h1 style="margin-bottom:10px;">手指リハ設定 V13</h1>
+    <h1 style="margin-bottom:15px;">手指リハ設定 V14</h1>
     
     <div class="setting-group">
         <div class="setting-title">1. 動きのパターン</div>
@@ -138,15 +148,6 @@
         </div>
     </div>
 
-    <div class="setting-group">
-        <div class="setting-title">4. 左右の手認識</div>
-        <div class="btn-group" id="flip-group">
-            <div class="select-btn active" data-flip="OFF">そのまま</div>
-            <div class="select-btn" data-flip="ON">反転する</div>
-        </div>
-        <div style="font-size:0.7rem; color:#aaa; margin-top:5px; text-align:center;">左右が逆に表示される場合は「反転」を選んでください</div>
-    </div>
-
     <button id="start-app-btn">スタート</button>
 </div>
 
@@ -154,8 +155,8 @@
 
 <div id="header-panel">
     <div class="status-row">
-        <div class="status-badge" id="sense-badge">感度: 中</div>
-        <div class="status-badge" id="hand-badge">Wait...</div>
+        <div class="status-badge" id="sense-badge" onclick="toggleSensitivity()">感度: 中</div>
+        <div class="status-badge" id="hand-badge" onclick="manualFlipHand()">自動検出中...</div>
     </div>
 
     <div class="count-row">
@@ -163,9 +164,7 @@
             <div class="count-label">現在</div>
             <div class="count-val" id="current-count">0</div>
         </div>
-        
         <div id="status-message">準備中</div>
-
         <div class="count-box">
             <div class="count-label">目標</div>
             <div class="count-val" id="target-count-display">--</div>
@@ -185,17 +184,16 @@
 <button id="reset-btn">設定に戻る</button>
 
 <script>
-    // PWA
+    // PWA Service Worker (Cache Busting V14)
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
     }
 
-    // 変数
+    // Variables
     let targetCount = 10;
     let currentCount = 0;
     let mode = 'GRASP'; 
     let sensitivity = 'MEDIUM';
-    let isFlip = false; // 左右反転フラグ
     let stepState = 0; 
     let isCelebrated = false;
     let fingerLatch = [false, false, false, false, false];
@@ -203,6 +201,10 @@
     let isVisualOrderNormal = true;
     let lostFrames = 0;
     const LOST_THRESHOLD = 10; 
+    
+    // 左右の手動補正用フラグ
+    let manualFlip = false; 
+    let lastHandedness = "";
 
     const synth = window.speechSynthesis;
     function speak(text, force = false) {
@@ -219,7 +221,6 @@
     const modeBtns = document.querySelectorAll('#mode-group .select-btn');
     const countBtns = document.querySelectorAll('#count-group .select-btn');
     const senseBtns = document.querySelectorAll('#sensitivity-group .select-btn');
-    const flipBtns = document.querySelectorAll('#flip-group .select-btn');
     const customCountInput = document.getElementById('custom-count');
     const currentCountDisplay = document.getElementById('current-count');
     const targetCountDisplay = document.getElementById('target-count-display');
@@ -230,7 +231,7 @@
     const handBadge = document.getElementById('hand-badge');
     const senseBadge = document.getElementById('sense-badge');
 
-    // Setup
+    // Setup Listeners
     modeBtns.forEach(btn => btn.onclick = () => {
         modeBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
@@ -251,12 +252,8 @@
         btn.classList.add('active');
         sensitivity = btn.dataset.sense;
     });
-    flipBtns.forEach(btn => btn.onclick = () => {
-        flipBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        isFlip = (btn.dataset.flip === 'ON');
-    });
 
+    // Start Button
     document.getElementById('start-app-btn').onclick = () => {
         settingsOverlay.style.display = 'none';
         currentCount = 0;
@@ -270,11 +267,7 @@
         targetCountDisplay.innerText = targetCount;
         updateVisualizer([false,false,false,false,false]);
         
-        // 感度バッジ更新
-        let sText = "中";
-        if(sensitivity==='LOW') sText="弱";
-        if(sensitivity==='HIGH') sText="強";
-        senseBadge.innerText = `感度: ${sText}`;
+        updateSenseBadge();
 
         let startMsg = "スタート";
         if(mode === 'GRASP') { startMsg = "握って！"; statusMessage.innerText = "握って"; }
@@ -284,7 +277,43 @@
         startCamera();
         speak(startMsg, true);
     };
+    
     document.getElementById('reset-btn').onclick = () => location.reload();
+
+    // Functions for Badges
+    function updateSenseBadge() {
+        let sText = "中";
+        if(sensitivity==='LOW') sText="弱";
+        if(sensitivity==='HIGH') sText="強";
+        senseBadge.innerText = `感度: ${sText}`;
+    }
+    
+    // 左右の手動反転機能（バッジタップで発動）
+    window.manualFlipHand = function() {
+        manualFlip = !manualFlip;
+        updateHandBadgeUI(lastHandedness);
+    };
+    
+    // 感度切り替え（バッジタップで発動）
+    window.toggleSensitivity = function() {
+        if(sensitivity === 'MEDIUM') sensitivity = 'HIGH';
+        else if(sensitivity === 'HIGH') sensitivity = 'LOW';
+        else sensitivity = 'MEDIUM';
+        updateSenseBadge();
+        speak("感度" + senseBadge.innerText.replace("感度: ",""), true);
+    };
+
+    function updateHandBadgeUI(aiLabel) {
+        let displayLabel = aiLabel;
+        if (manualFlip) {
+            displayLabel = (aiLabel === 'Left') ? 'Right' : 'Left';
+        }
+        // 日本語表記 + 反転マーク
+        let text = (displayLabel === 'Left') ? '左手' : '右手';
+        if (manualFlip) text += " (反転)";
+        handBadge.innerText = text;
+        handBadge.style.color = manualFlip ? "#ff9800" : "#00bcd4";
+    }
 
     // MediaPipe
     const videoElement = document.getElementById('inputVideo');
@@ -303,16 +332,13 @@
             lostFrames = 0; 
             const landmarks = results.multiHandLandmarks[0];
             
-            // 手の左右判定 + 反転設定
-            let handedness = results.multiHandedness[0].label; // 'Left' or 'Right'
-            if (isFlip) {
-                handedness = (handedness === 'Left') ? 'Right' : 'Left';
-            }
-            handBadge.innerText = (handedness === 'Left') ? '左手' : '右手';
+            // 1. AIによる左右判定
+            let aiHandedness = results.multiHandedness[0].label; // 'Left' or 'Right'
+            lastHandedness = aiHandedness;
+            updateHandBadgeUI(aiHandedness);
 
-            // 画面上の並び順 (親指X vs 小指X)
-            // 反転設定(isFlip)がある場合、見た目のロジックも影響を受ける可能性があるが
-            // 座標自体はカメラ映像に基づくので、X座標比較が最も確実
+            // 2. 指の並び順 (X座標比較)
+            // 親指(4)と小指(20)のX座標を比較して、見た目の並び順を決定
             const thumbX = landmarks[4].x;
             const pinkyX = landmarks[20].x;
             isVisualOrderNormal = thumbX < pinkyX; 
@@ -332,7 +358,6 @@
             }
             if (isCelebrated) { canvasCtx.restore(); return; }
 
-            // 判定
             const bentStatus = getBentStatusV13(landmarks, sensitivity); 
             
             if (mode === 'FINGER') {
@@ -357,20 +382,14 @@
         fingerVisualizer.innerText = marks;
     }
 
-    // --- ロジック ---
-
+    // --- Logic ---
     function processFingerMode(bentStatus) {
         const beforeCount = fingerLatch.filter(Boolean).length;
         
-        // リセット待ち
         if (stepState === 99) {
             updateVisualizer(fingerLatch);
             const currentBentCount = bentStatus.filter(Boolean).length;
-            
-            // 強感度の場合、少し曲がってても(2本)リセット扱いにする
-            let resetThreshold = 0;
-            if (sensitivity === 'HIGH') resetThreshold = 2; 
-            else if (sensitivity === 'MEDIUM') resetThreshold = 1;
+            let resetThreshold = (sensitivity === 'HIGH') ? 2 : 1;
 
             if (currentBentCount <= resetThreshold) { 
                 stepState = 0;
@@ -386,10 +405,8 @@
         }
 
         const currentBentCount = bentStatus.filter(Boolean).length;
-        // いきなりグー防止 (2本未満 -> 5本)
-        if (prevBentCount < 2 && currentBentCount === 5) { 
-            // skip
-        } else {
+        if (prevBentCount < 2 && currentBentCount === 5) { /* skip */ }
+        else {
             for(let i=0; i<5; i++) {
                 if (bentStatus[i]) fingerLatch[i] = true;
             }
@@ -413,9 +430,120 @@
 
     function processGrasp(extended) {
         const count = extended.filter(Boolean).length;
-        // 強感度なら、開く判定も甘くする(3本でOK)
-        let openThresh = 4;
-        if (sensitivity === 'HIGH') openThresh = 3;
+        let openThresh = (sensitivity === 'HIGH') ? 3 : 4;
 
         if (count <= 1) { 
-            if (stepState
+            if (stepState === 0) { stepState = 1; statusMessage.innerText = "開いて！"; }
+        } else if (count >= openThresh) { 
+            if (stepState === 1) { incrementCount(true); stepState = 0; statusMessage.innerText = "握って"; }
+        }
+    }
+
+    function processJanken(extended) {
+        const count = extended.filter(Boolean).length;
+        let shape = 'UNKNOWN';
+        let rockThresh = 1;
+        let paperThresh = (sensitivity === 'HIGH') ? 3 : 4;
+
+        if (count <= rockThresh) shape = 'ROCK';
+        else if (count >= paperThresh) shape = 'PAPER';
+        else if (extended[1] && extended[2] && !extended[3] && !extended[4]) shape = 'SCISSORS';
+
+        if (stepState === 0 && shape === 'ROCK') {
+            speak("グー", true); stepState = 1; statusMessage.innerText = "次はチョキ";
+        } else if (stepState === 1 && shape === 'SCISSORS') {
+            speak("チョキ", true); stepState = 2; statusMessage.innerText = "最後はパー";
+        } else if (stepState === 2 && shape === 'PAPER') {
+            speak("パー！", true); 
+            incrementCount(false);
+            stepState = 3; 
+            statusMessage.innerText = "グーに戻して";
+        } else if (stepState === 3 && shape === 'ROCK') {
+             stepState = 0; speak("グー", true); stepState = 1; statusMessage.innerText = "次はチョキ";
+        }
+    }
+
+    function incrementCount(withVoice = true) {
+        currentCount++;
+        currentCountDisplay.innerText = currentCount;
+        if (withVoice && mode === 'GRASP') speak(currentCount + "回", true);
+    }
+
+    function getAngle(A, B, C) {
+        const v1 = {x: A.x - B.x, y: A.y - B.y, z: A.z - B.z};
+        const v2 = {x: C.x - B.x, y: C.y - B.y, z: C.z - B.z};
+        const dot = v1.x * v2.x + v1.y * v2.y + (v1.z * v2.z || 0);
+        const mag1 = Math.sqrt(v1.x*v1.x + v1.y*v1.y + (v1.z*v1.z || 0));
+        const mag2 = Math.sqrt(v2.x*v2.x + v2.y*v2.y + (v2.z*v2.z || 0));
+        return Math.acos(Math.min(Math.max(dot / (mag1 * mag2), -1), 1)) * (180 / Math.PI);
+    }
+
+    function getBentStatusV13(landmarks, sensitivity) {
+        const bent = [false, false, false, false, false];
+        const wrist = landmarks[0];
+        const handSize = Math.hypot(wrist.x - landmarks[9].x, wrist.y - landmarks[9].y);
+
+        let threshAngle = 140; 
+        let threshDistRatio = 1.2; 
+        let threshTipMcpRatio = 1.2; 
+
+        if (sensitivity === 'HIGH') {
+            // V13修正: 誤爆防止のため、角度は165度、TipMcp比率は0.9（少し縮んだらOK）にする
+            threshAngle = 165; 
+            threshDistRatio = 1.3; 
+            threshTipMcpRatio = 0.9; // ここを厳しくして誤判定防止
+        } else if (sensitivity === 'LOW') {
+            threshAngle = 100;
+            threshDistRatio = 0.9;
+            threshTipMcpRatio = 0.7;
+        }
+
+        const angleThumb = getAngle(landmarks[2], landmarks[3], landmarks[4]);
+        const distThumbTipToPinkyBase = Math.hypot(landmarks[4].x - landmarks[17].x, landmarks[4].y - landmarks[17].y);
+        let thumbAngleThresh = (sensitivity === 'HIGH') ? 170 : 160;
+        if(sensitivity === 'LOW') thumbAngleThresh = 140;
+        let thumbDistThresh = (sensitivity === 'HIGH') ? 1.0 : 0.8;
+        
+        bent[0] = angleThumb < thumbAngleThresh || distThumbTipToPinkyBase < (handSize * thumbDistThresh);
+
+        const fingerTips = [null, 8, 12, 16, 20];
+        const fingerMcp = [null, 5, 9, 13, 17];
+        
+        for (let i = 1; i <= 4; i++) {
+            const pipIdx = i*4 + 2;
+            const angle = getAngle(landmarks[pipIdx-1], landmarks[pipIdx], landmarks[pipIdx+1]);
+            const distTipWrist = Math.hypot(landmarks[fingerTips[i]].x - wrist.x, landmarks[fingerTips[i]].y - wrist.y);
+            const distMcpWrist = Math.hypot(landmarks[fingerMcp[i]].x - wrist.x, landmarks[fingerMcp[i]].y - wrist.y);
+            const distTipMcp = Math.hypot(landmarks[fingerTips[i]].x - landmarks[fingerMcp[i]].x, landmarks[fingerTips[i]].y - landmarks[fingerMcp[i]].y);
+            
+            const condAngle = angle < threshAngle;
+            const condWristDist = distTipWrist < (distMcpWrist * threshDistRatio);
+            const condTipMcp = distTipMcp < (handSize * threshTipMcpRatio);
+
+            bent[i] = condAngle || condWristDist || condTipMcp;
+        }
+        return bent;
+    }
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: 1280, height: 720 } 
+            });
+            videoElement.srcObject = stream;
+            videoElement.play();
+            videoElement.onloadedmetadata = () => {
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                processVideo();
+            };
+        } catch (err) { alert("カメラエラー: " + err.name); }
+    }
+
+    async function processVideo() {
+        await hands.send({image: videoElement});
+        requestAnimationFrame(processVideo);
+    }
+</script>
+</body>
+</html>
